@@ -492,7 +492,7 @@ std::set<std::string>* NewAllowedProto3Extendee() {
     allowed_proto3_extendees->insert(std::string("google.protobuf.") +
                                      kOptionNames[i]);
     // Split the word to trick the opensource processing scripts so they
-    // will keep the origial package name.
+    // will keep the original package name.
     allowed_proto3_extendees->insert(std::string("proto") + "2." +
                                      kOptionNames[i]);
   }
@@ -1493,6 +1493,23 @@ const FieldDescriptor* DescriptorPool::FindExtensionByNumber(
       return result;
     }
   }
+  return nullptr;
+}
+
+const FieldDescriptor* DescriptorPool::InternalFindExtensionByNumberNoLock(
+    const Descriptor* extendee, int number) const {
+  if (extendee->extension_range_count() == 0) return nullptr;
+
+  const FieldDescriptor* result = tables_->FindExtension(extendee, number);
+  if (result != nullptr) {
+    return result;
+  }
+
+  if (underlay_ != nullptr) {
+    result = underlay_->InternalFindExtensionByNumberNoLock(extendee, number);
+    if (result != nullptr) return result;
+  }
+
   return nullptr;
 }
 
@@ -3229,7 +3246,7 @@ class DescriptorBuilder {
   // Like AddSymbol(), but succeeds if the symbol is already defined as long
   // as the existing definition is also a package (because it's OK to define
   // the same package in two different files).  Also adds all parents of the
-  // packgae to the symbol table (e.g. AddPackage("foo.bar", ...) will add
+  // package to the symbol table (e.g. AddPackage("foo.bar", ...) will add
   // "foo.bar" and "foo" to the table).
   void AddPackage(const std::string& name, const Message& proto,
                   const FileDescriptor* file);
@@ -3252,7 +3269,8 @@ class DescriptorBuilder {
   // descriptor.proto.
   template <class DescriptorT>
   void AllocateOptions(const typename DescriptorT::OptionsType& orig_options,
-                       DescriptorT* descriptor, int options_field_tag);
+                       DescriptorT* descriptor, int options_field_tag,
+                       const std::string& option_name);
   // Specialization for FileOptions.
   void AllocateOptions(const FileOptions& orig_options,
                        FileDescriptor* descriptor);
@@ -3262,7 +3280,8 @@ class DescriptorBuilder {
   void AllocateOptionsImpl(
       const std::string& name_scope, const std::string& element_name,
       const typename DescriptorT::OptionsType& orig_options,
-      DescriptorT* descriptor, const std::vector<int>& options_path);
+      DescriptorT* descriptor, const std::vector<int>& options_path,
+      const std::string& option_name);
 
   // Allocate string on the string pool and initialize it to full proto name.
   // Full proto name is "scope.proto_name" if scope is non-empty and
@@ -4075,12 +4094,13 @@ void DescriptorBuilder::ValidateSymbolName(const std::string& name,
 template <class DescriptorT>
 void DescriptorBuilder::AllocateOptions(
     const typename DescriptorT::OptionsType& orig_options,
-    DescriptorT* descriptor, int options_field_tag) {
+    DescriptorT* descriptor, int options_field_tag,
+    const std::string& option_name) {
   std::vector<int> options_path;
   descriptor->GetLocationPath(&options_path);
   options_path.push_back(options_field_tag);
   AllocateOptionsImpl(descriptor->full_name(), descriptor->full_name(),
-                      orig_options, descriptor, options_path);
+                      orig_options, descriptor, options_path, option_name);
 }
 
 // We specialize for FileDescriptor.
@@ -4090,14 +4110,16 @@ void DescriptorBuilder::AllocateOptions(const FileOptions& orig_options,
   options_path.push_back(FileDescriptorProto::kOptionsFieldNumber);
   // We add the dummy token so that LookupSymbol does the right thing.
   AllocateOptionsImpl(descriptor->package() + ".dummy", descriptor->name(),
-                      orig_options, descriptor, options_path);
+                      orig_options, descriptor, options_path,
+                      "google.protobuf.FileOptions");
 }
 
 template <class DescriptorT>
 void DescriptorBuilder::AllocateOptionsImpl(
     const std::string& name_scope, const std::string& element_name,
     const typename DescriptorT::OptionsType& orig_options,
-    DescriptorT* descriptor, const std::vector<int>& options_path) {
+    DescriptorT* descriptor, const std::vector<int>& options_path,
+    const std::string& option_name) {
   // We need to use a dummy pointer to work around a bug in older versions of
   // GCC.  Otherwise, the following two lines could be replaced with:
   //   typename DescriptorT::OptionsType* options =
@@ -4129,6 +4151,25 @@ void DescriptorBuilder::AllocateOptionsImpl(
   if (options->uninterpreted_option_size() > 0) {
     options_to_interpret_.push_back(OptionsToInterpret(
         name_scope, element_name, options_path, &orig_options, options));
+  }
+
+  // If the custom option is in unknown fields, no need to interpret it.
+  // Remove the dependency file from unused_dependency.
+  const UnknownFieldSet& unknown_fields = orig_options.unknown_fields();
+  if (!unknown_fields.empty()) {
+    // Can not use options->GetDescriptor() which may case deadlock.
+    Symbol msg_symbol = tables_->FindSymbol(option_name);
+    if (msg_symbol.type == Symbol::MESSAGE) {
+      for (int i = 0; i < unknown_fields.field_count(); ++i) {
+        assert_mutex_held(pool_);
+        const FieldDescriptor* field =
+            pool_->InternalFindExtensionByNumberNoLock(
+                msg_symbol.descriptor, unknown_fields.field(i).number());
+        if (field) {
+          unused_dependency_.erase(field->file());
+        }
+      }
+    }
   }
 }
 
@@ -4555,11 +4596,11 @@ void DescriptorBuilder::BuildMessage(const DescriptorProto& proto,
     result->options_ = nullptr;  // Will set to default_instance later.
   } else {
     AllocateOptions(proto.options(), result,
-                    DescriptorProto::kOptionsFieldNumber);
+                    DescriptorProto::kOptionsFieldNumber,
+                    "google.protobuf.MessageOptions");
   }
 
   AddSymbol(result->full_name(), parent, result->name(), proto, Symbol(result));
-
 
   for (int i = 0; i < proto.reserved_range_size(); i++) {
     const DescriptorProto_ReservedRange& range1 = proto.reserved_range(i);
@@ -4928,7 +4969,8 @@ void DescriptorBuilder::BuildFieldOrExtension(const FieldDescriptorProto& proto,
     result->options_ = nullptr;  // Will set to default_instance later.
   } else {
     AllocateOptions(proto.options(), result,
-                    FieldDescriptorProto::kOptionsFieldNumber);
+                    FieldDescriptorProto::kOptionsFieldNumber,
+                    "google.protobuf.FieldOptions");
   }
 
 
@@ -4968,7 +5010,8 @@ void DescriptorBuilder::BuildExtensionRange(
     options_path.push_back(index);
     options_path.push_back(DescriptorProto_ExtensionRange::kOptionsFieldNumber);
     AllocateOptionsImpl(parent->full_name(), parent->full_name(),
-                        proto.options(), result, options_path);
+                        proto.options(), result, options_path,
+                        "google.protobuf.ExtensionRangeOptions");
   }
 }
 
@@ -5015,7 +5058,8 @@ void DescriptorBuilder::BuildOneof(const OneofDescriptorProto& proto,
   // Copy options.
   if (proto.has_options()) {
     AllocateOptions(proto.options(), result,
-                    OneofDescriptorProto::kOptionsFieldNumber);
+                    OneofDescriptorProto::kOptionsFieldNumber,
+                    "google.protobuf.OneofOptions");
   }
 
   AddSymbol(result->full_name(), parent, result->name(), proto, Symbol(result));
@@ -5129,7 +5173,8 @@ void DescriptorBuilder::BuildEnum(const EnumDescriptorProto& proto,
     result->options_ = nullptr;  // Will set to default_instance later.
   } else {
     AllocateOptions(proto.options(), result,
-                    EnumDescriptorProto::kOptionsFieldNumber);
+                    EnumDescriptorProto::kOptionsFieldNumber,
+                    "google.protobuf.EnumOptions");
   }
 
   AddSymbol(result->full_name(), parent, result->name(), proto, Symbol(result));
@@ -5207,7 +5252,8 @@ void DescriptorBuilder::BuildEnumValue(const EnumValueDescriptorProto& proto,
     result->options_ = nullptr;  // Will set to default_instance later.
   } else {
     AllocateOptions(proto.options(), result,
-                    EnumValueDescriptorProto::kOptionsFieldNumber);
+                    EnumValueDescriptorProto::kOptionsFieldNumber,
+                    "google.protobuf.EnumValueOptions");
   }
 
   // Again, enum values are weird because we makes them appear as siblings
@@ -5272,7 +5318,8 @@ void DescriptorBuilder::BuildService(const ServiceDescriptorProto& proto,
     result->options_ = nullptr;  // Will set to default_instance later.
   } else {
     AllocateOptions(proto.options(), result,
-                    ServiceDescriptorProto::kOptionsFieldNumber);
+                    ServiceDescriptorProto::kOptionsFieldNumber,
+                    "google.protobuf.ServiceOptions");
   }
 
   AddSymbol(result->full_name(), nullptr, result->name(), proto,
@@ -5300,7 +5347,8 @@ void DescriptorBuilder::BuildMethod(const MethodDescriptorProto& proto,
     result->options_ = nullptr;  // Will set to default_instance later.
   } else {
     AllocateOptions(proto.options(), result,
-                    MethodDescriptorProto::kOptionsFieldNumber);
+                    MethodDescriptorProto::kOptionsFieldNumber,
+                    "google.protobuf.MethodOptions");
   }
 
   result->client_streaming_ = proto.client_streaming();
@@ -5496,7 +5544,7 @@ void DescriptorBuilder::CrossLinkField(FieldDescriptor* field,
                           proto.has_default_value();
 
     // In case of weak fields we force building the dependency. We need to know
-    // if the type exist or not. If it doesnt exist we substitute Empty which
+    // if the type exist or not. If it doesn't exist we substitute Empty which
     // should only be done if the type can't be found in the generated pool.
     // TODO(gerbens) Ideally we should query the database directly to check
     // if weak fields exist or not so that we don't need to force building
@@ -6389,6 +6437,7 @@ bool DescriptorBuilder::OptionInterpreter::InterpretSingleOption(
   std::vector<int> dest_path = options_path;
 
   for (int i = 0; i < uninterpreted_option_->name_size(); ++i) {
+    builder_->undefine_resolved_name_.clear();
     const std::string& name_part = uninterpreted_option_->name(i).name_part();
     if (debug_msg_name.size() > 0) {
       debug_msg_name += ".";

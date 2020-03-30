@@ -97,13 +97,17 @@ class PROTOBUF_EXPORT ProtoStreamObjectWriter : public ProtoWriter {
     // value type is google.protobuf.NullType.
     bool ignore_null_value_map_entry;
 
+    // If true, accepts repeated key/value pair for a map proto field.
+    bool use_legacy_json_map_format;
+
     Options()
         : struct_integers_as_strings(false),
           ignore_unknown_fields(false),
           ignore_unknown_enum_values(false),
           use_lower_camel_for_enums(false),
           case_insensitive_enum_parsing(false),
-          ignore_null_value_map_entry(false) {}
+          ignore_null_value_map_entry(false),
+          use_legacy_json_map_format(false) {}
 
     // Default instance of Options with all options set to defaults.
     static const Options& Defaults() {
@@ -378,7 +382,7 @@ class PROTOBUF_EXPORT ProtoStreamObjectWriter : public ProtoWriter {
   // on the underlying ObjectWriter depending on whether is_list is false or
   // not.
   // is_placeholder conveys whether the item is a placeholder item or not.
-  // Placeholder items are pushed when adding auxillary types' StartObject or
+  // Placeholder items are pushed when adding auxiliary types' StartObject or
   // StartList calls.
   void Push(StringPiece name, Item::ItemType item_type,
             bool is_placeholder, bool is_list);

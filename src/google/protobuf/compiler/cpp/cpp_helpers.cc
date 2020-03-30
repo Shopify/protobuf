@@ -406,7 +406,7 @@ std::string SuperClassName(const Descriptor* descriptor,
                                                             : "::MessageLite");
 }
 
-std::string ResolveKeyword(const string& name) {
+std::string ResolveKeyword(const std::string& name) {
   if (kKeywords.count(name) > 0) {
     return name + "_";
   }
@@ -665,7 +665,7 @@ std::string DefaultValue(const Options& options, const FieldDescriptor* field) {
         // If floating point value contains a period (.) or an exponent
         // (either E or e), then append suffix 'f' to make it a float
         // literal.
-        if (float_value.find_first_of(".eE") != string::npos) {
+        if (float_value.find_first_of(".eE") != std::string::npos) {
           float_value.push_back('f');
         }
         return float_value;
@@ -709,8 +709,8 @@ std::string FilenameIdentifier(const std::string& filename) {
   return result;
 }
 
-string UniqueName(const std::string& name, const std::string& filename,
-                  const Options& options) {
+std::string UniqueName(const std::string& name, const std::string& filename,
+                       const Options& options) {
   return name + "_" + FilenameIdentifier(filename);
 }
 
@@ -983,12 +983,6 @@ bool IsWellKnownMessage(const FileDescriptor* file) {
   return well_known_files.find(file->name()) != well_known_files.end();
 }
 
-enum Utf8CheckMode {
-  STRICT = 0,  // Parsing will fail if non UTF-8 data is in string fields.
-  VERIFY = 1,  // Only log an error but parsing will succeed.
-  NONE = 2,    // No UTF-8 check.
-};
-
 static bool FieldEnforceUtf8(const FieldDescriptor* field,
                              const Options& options) {
   return true;
@@ -1000,8 +994,8 @@ static bool FileUtf8Verification(const FileDescriptor* file,
 }
 
 // Which level of UTF-8 enforcemant is placed on this file.
-static Utf8CheckMode GetUtf8CheckMode(const FieldDescriptor* field,
-                                      const Options& options) {
+Utf8CheckMode GetUtf8CheckMode(const FieldDescriptor* field,
+                               const Options& options) {
   if (field->file()->syntax() == FileDescriptor::SYNTAX_PROTO3 &&
       FieldEnforceUtf8(field, options)) {
     return STRICT;
@@ -1011,19 +1005,6 @@ static Utf8CheckMode GetUtf8CheckMode(const FieldDescriptor* field,
     return VERIFY;
   } else {
     return NONE;
-  }
-}
-
-std::string GetUtf8Suffix(const FieldDescriptor* field,
-                          const Options& options) {
-  switch (GetUtf8CheckMode(field, options)) {
-    case STRICT:
-      return "UTF8";
-    case VERIFY:
-      return "UTF8Verify";
-    case NONE:
-    default:  // Some build configs warn on missing return without default.
-      return "";
   }
 }
 
@@ -1418,17 +1399,11 @@ class ParseLoopGenerator {
   using WireFormat = internal::WireFormat;
   using WireFormatLite = internal::WireFormatLite;
 
-  void GenerateArenaString(const FieldDescriptor* field,
-                           const std::string& utf8, std::string field_name) {
-    if (!field_name.empty()) {
-      format_("static const char kFieldName[] = $1$;\n",
-              field_name.substr(2));  // remove ", "
-      field_name = ", kFieldName";
-    }
+  void GenerateArenaString(const FieldDescriptor* field) {
     if (HasFieldPresence(field->file())) {
       format_("_Internal::set_has_$1$(&$has_bits$);\n", FieldName(field));
     }
-    string default_string =
+    std::string default_string =
         field->default_value_string().empty()
             ? "::" + ProtobufNamespace(options_) +
                   "::internal::GetEmptyStringAlreadyInited()"
@@ -1436,28 +1411,17 @@ class ParseLoopGenerator {
                   "::" + MakeDefaultName(field) + ".get()";
     format_(
         "if (arena != nullptr) {\n"
-        "  ptr = $pi_ns$::InlineCopyIntoArenaString$1$(&$2$_, ptr, ctx, "
-        "  arena$3$);\n"
+        "  ptr = ctx->ReadArenaString(ptr, &$1$_, arena);\n"
         "} else {\n"
         "  ptr = "
-        "$pi_ns$::InlineGreedyStringParser$1$($2$_.MutableNoArenaNoDefault(&$4$"
-        "), ptr, ctx$3$);"
-        "\n}\n",
-        utf8, FieldName(field), field_name, default_string);
+        "$pi_ns$::InlineGreedyStringParser($1$_.MutableNoArenaNoDefault(&$2$"
+        "), ptr, ctx);"
+        "\n}\n"
+        "const std::string* str = &$1$_.Get(); (void)str;\n",
+        FieldName(field), default_string);
   }
 
   void GenerateStrings(const FieldDescriptor* field, bool check_utf8) {
-    std::string utf8;
-    std::string field_name;
-    if (check_utf8) {
-      utf8 = GetUtf8Suffix(field, options_);
-      if (!utf8.empty()) {
-        field_name = ", nullptr";
-        if (HasDescriptorMethods(field->file(), options_)) {
-          field_name = StrCat(", \"", field->full_name(), "\"");
-        }
-      }
-    }
     FieldOptions::CType ctype = FieldOptions::STRING;
     if (!options_.opensource_runtime) {
       // Open source doesn't support other ctypes;
@@ -1470,25 +1434,57 @@ class ParseLoopGenerator {
         field->default_value_string().empty() &&
         !IsStringInlined(field, options_) &&
         field->containing_oneof() == nullptr && ctype == FieldOptions::STRING) {
-      GenerateArenaString(field, utf8, field_name);
-      return;
+      GenerateArenaString(field);
+    } else {
+      std::string name;
+      switch (ctype) {
+        case FieldOptions::STRING:
+          name = "GreedyStringParser";
+          break;
+        case FieldOptions::CORD:
+          name = "CordParser";
+          break;
+        case FieldOptions::STRING_PIECE:
+          name = "StringPieceParser";
+          break;
+      }
+      format_(
+          "auto str = $1$$2$_$3$();\n"
+          "ptr = $pi_ns$::Inline$4$(str, ptr, ctx);\n",
+          HasInternalAccessors(ctype) ? "_internal_" : "",
+          field->is_repeated() && !field->is_packable() ? "add" : "mutable",
+          FieldName(field), name);
     }
-    std::string name;
-    switch (ctype) {
-      case FieldOptions::STRING:
-        name = "GreedyStringParser" + utf8;
+    if (!check_utf8) return;  // return if this is a bytes field
+    auto level = GetUtf8CheckMode(field, options_);
+    switch (level) {
+      case NONE:
+        return;
+      case VERIFY:
+        format_("#ifndef NDEBUG\n");
         break;
-      case FieldOptions::CORD:
-        name = "CordParser" + utf8;
-        break;
-      case FieldOptions::STRING_PIECE:
-        name = "StringPieceParser" + utf8;
+      case STRICT:
+        format_("CHK_(");
         break;
     }
-    format_("ptr = $pi_ns$::Inline$1$($2$$3$_$4$(), ptr, ctx$5$);\n", name,
-            HasInternalAccessors(ctype) ? "_internal_" : "",
-            field->is_repeated() && !field->is_packable() ? "add" : "mutable",
-            FieldName(field), field_name);
+    std::string field_name;
+    field_name = "nullptr";
+    if (HasDescriptorMethods(field->file(), options_)) {
+      field_name = StrCat("\"", field->full_name(), "\"");
+    }
+    format_("$pi_ns$::VerifyUTF8(str, $1$)", field_name);
+    switch (level) {
+      case NONE:
+        return;
+      case VERIFY:
+        format_(
+            ";\n"
+            "#endif  // !NDEBUG\n");
+        break;
+      case STRICT:
+        format_(");\n");
+        break;
+    }
   }
 
   void GenerateLengthDelim(const FieldDescriptor* field) {
@@ -1609,7 +1605,7 @@ class ParseLoopGenerator {
         std::string prefix = field->is_repeated() ? "add" : "set";
         if (field->type() == FieldDescriptor::TYPE_ENUM) {
           format_(
-              "$uint64$ val = $pi_ns$::ReadVarint(&ptr);\n"
+              "$uint64$ val = $pi_ns$::ReadVarint64(&ptr);\n"
               "CHK_(ptr);\n");
           if (!HasPreservingUnknownEnumSemantics(field)) {
             format_("if (PROTOBUF_PREDICT_TRUE($1$_IsValid(val))) {\n",
@@ -1628,27 +1624,27 @@ class ParseLoopGenerator {
                 field->number());
           }
         } else {
-          int size = field->type() == FieldDescriptor::TYPE_SINT32 ? 32 : 64;
+          std::string size = (field->type() == FieldDescriptor::TYPE_SINT32 || field->type() == FieldDescriptor::TYPE_UINT32) ? "32" : "64";
           std::string zigzag;
           if ((field->type() == FieldDescriptor::TYPE_SINT32 ||
                field->type() == FieldDescriptor::TYPE_SINT64)) {
-            zigzag = StrCat("ZigZag", size);
+            zigzag = "ZigZag";
           }
           if (field->is_repeated() || field->containing_oneof()) {
-            string prefix = field->is_repeated() ? "add" : "set";
+            std::string prefix = field->is_repeated() ? "add" : "set";
             format_(
-                "_internal_$1$_$2$($pi_ns$::ReadVarint$3$(&ptr));\n"
+                "_internal_$1$_$2$($pi_ns$::ReadVarint$3$$4$(&ptr));\n"
                 "CHK_(ptr);\n",
-                prefix, FieldName(field), zigzag);
+                prefix, FieldName(field), zigzag, size);
           } else {
             if (HasFieldPresence(field->file())) {
               format_("_Internal::set_has_$1$(&$has_bits$);\n",
                       FieldName(field));
             }
             format_(
-                "$1$_ = $pi_ns$::ReadVarint$2$(&ptr);\n"
+                "$1$_ = $pi_ns$::ReadVarint$2$$3$(&ptr);\n"
                 "CHK_(ptr);\n",
-                FieldName(field), zigzag);
+                FieldName(field), zigzag, size);
           }
         }
         break;
@@ -1657,7 +1653,7 @@ class ParseLoopGenerator {
       case WireFormatLite::WIRETYPE_FIXED64: {
         std::string type = PrimitiveTypeName(options_, field->cpp_type());
         if (field->is_repeated() || field->containing_oneof()) {
-          string prefix = field->is_repeated() ? "add" : "set";
+          std::string prefix = field->is_repeated() ? "add" : "set";
           format_(
               "_internal_$1$_$2$($pi_ns$::UnalignedLoad<$3$>(ptr));\n"
               "ptr += sizeof($3$);\n",
@@ -1723,28 +1719,15 @@ class ParseLoopGenerator {
         "while (!ctx->Done(&ptr)) {\n"
         "  $uint32$ tag;\n"
         "  ptr = $pi_ns$::ReadTag(ptr, &tag);\n"
-        "  CHK_(ptr);\n"
-        "  switch (tag >> 3) {\n");
+        "  CHK_(ptr);\n");
+    if (!ordered_fields.empty()) format_("  switch (tag >> 3) {\n");
 
     format_.Indent();
     format_.Indent();
 
     for (const auto* field : ordered_fields) {
-      // Print the field's (or oneof's) proto-syntax definition as a comment.
-      // We don't want to print group bodies so we cut off after the first
-      // line.
-      std::string def;
-      {
-        DebugStringOptions options;
-        options.elide_group_body = true;
-        options.elide_oneof_body = true;
-        def = field->DebugStringWithOptions(options);
-        def = def.substr(0, def.find_first_of('\n'));
-      }
-      format_(
-          "// $1$\n"
-          "case $2$:\n",
-          def, field->number());
+      PrintFieldComment(format_, field);
+      format_("case $1$:\n", field->number());
       format_.Indent();
       uint32 fallback_tag = 0;
       uint32 expected_tag = ExpectedTag(field, &fallback_tag);
@@ -1787,7 +1770,7 @@ class ParseLoopGenerator {
     }  // for loop over ordered fields
 
     // Default case
-    format_("default: {\n");
+    if (!ordered_fields.empty()) format_("default: {\n");
     if (!ordered_fields.empty()) format_("handle_unusual:\n");
     format_(
         "  if ((tag & 7) == 4 || tag == 0) {\n"
@@ -1828,12 +1811,11 @@ class ParseLoopGenerator {
           "  CHK_(ptr != nullptr);\n"
           "  continue;\n");
     }
-    format_("}\n");  // default case
+    if (!ordered_fields.empty()) format_("}\n");  // default case
     format_.Outdent();
     format_.Outdent();
-    format_(
-        "  }  // switch\n"
-        "}  // while\n");
+    if (!ordered_fields.empty()) format_("  }  // switch\n");
+    format_("}  // while\n");
   }
 };
 

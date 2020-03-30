@@ -30,7 +30,7 @@
 
 """Contains routines for printing protocol messages in text format.
 
-Simple usage example:
+Simple usage example::
 
   # Create a proto object and serialize it to a text proto string.
   message = my_proto_pb2.MyMessage(foo='bar')
@@ -155,23 +155,24 @@ def MessageToString(message,
       will be printed at the end of the message and their relative order is
       determined by the extension number. By default, use the field number
       order.
-    float_format: If set, use this to specify float field formatting
-      (per the "Format Specification Mini-Language"); otherwise, 8 valid digits
-      is used (default '.8g'). Also affect double field if double_format is
-      not set but float_format is set.
-    double_format: If set, use this to specify double field formatting
+    float_format (str): If set, use this to specify float field formatting
+      (per the "Format Specification Mini-Language"); otherwise, 8 valid
+      digits is used (default '.8g'). Also affect double field if
+      double_format is not set but float_format is set.
+    double_format (str): If set, use this to specify double field formatting
       (per the "Format Specification Mini-Language"); if it is not set but
-      float_format is set, use float_format. Otherwise, use str()
+      float_format is set, use float_format. Otherwise, use ``str()``
     use_field_number: If True, print field numbers instead of names.
-    descriptor_pool: A DescriptorPool used to resolve Any types.
-    indent: The initial indent level, in terms of spaces, for pretty print.
-    message_formatter: A function(message, indent, as_one_line): unicode|None
-      to custom format selected sub-messages (usually based on message type).
-      Use to pretty print parts of the protobuf for easier diffing.
+    descriptor_pool (DescriptorPool): Descriptor pool used to resolve Any types.
+    indent (int): The initial indent level, in terms of spaces, for pretty
+      print.
+    message_formatter (function(message, indent, as_one_line) -> unicode|None):
+      Custom formatter for selected sub-messages (usually based on message
+      type). Use to pretty print parts of the protobuf for easier diffing.
     print_unknown_fields: If True, unknown fields will be printed.
 
   Returns:
-    A string of the text formatted protocol buffer message.
+    str: A string of the text formatted protocol buffer message.
   """
   out = TextWriter(as_utf8)
   printer = _Printer(out, indent, as_utf8, as_one_line,
@@ -578,45 +579,18 @@ class _Printer(object):
       else:
         out.write(str(value))
     elif field.cpp_type == descriptor.FieldDescriptor.CPPTYPE_STRING:
-      embedded_unknown_message = None
-      if self.print_unknown_fields:
-        try:
-          # If this field is parseable as a Message, it is probably
-          # an embedded message.
-          # pylint: disable=protected-access
-          (embedded_unknown_message, pos) = decoder._DecodeUnknownFieldSet(
-              memoryview(value), 0, len(value))
-          if pos != len(value):
-            embedded_unknown_message = None
-        except Exception:    # pylint: disable=broad-except
-          pass
-      if embedded_unknown_message:
-        if self.as_one_line:
-          out.write(' { ')
-        else:
-          out.write(' {\n')
-          self.indent += 2
-
-        self._PrintUnknownFields(embedded_unknown_message)
-
-        if self.as_one_line:
-          out.write('} ')
-        else:
-          self.indent -= 2
-          out.write(' ' * self.indent + '}')
+      out.write('\"')
+      if isinstance(value, six.text_type) and (six.PY2 or not self.as_utf8):
+        out_value = value.encode('utf-8')
       else:
-        out.write('\"')
-        if isinstance(value, six.text_type) and (six.PY2 or not self.as_utf8):
-          out_value = value.encode('utf-8')
-        else:
-          out_value = value
-        if field.type == descriptor.FieldDescriptor.TYPE_BYTES:
-          # We always need to escape all binary data in TYPE_BYTES fields.
-          out_as_utf8 = False
-        else:
-          out_as_utf8 = self.as_utf8
-        out.write(text_encoding.CEscape(out_value, out_as_utf8))
-        out.write('\"')
+        out_value = value
+      if field.type == descriptor.FieldDescriptor.TYPE_BYTES:
+        # We always need to escape all binary data in TYPE_BYTES fields.
+        out_as_utf8 = False
+      else:
+        out_as_utf8 = self.as_utf8
+      out.write(text_encoding.CEscape(out_value, out_as_utf8))
+      out.write('\"')
     elif field.cpp_type == descriptor.FieldDescriptor.CPPTYPE_BOOL:
       if value:
         out.write('true')
@@ -644,14 +618,23 @@ def Parse(text,
 
   NOTE: for historical reasons this function does not clear the input
   message. This is different from what the binary msg.ParseFrom(...) does.
+  If text contains a field already set in message, the value is appended if the
+  field is repeated. Otherwise, an error is raised.
 
-  Example
+  Example::
+
     a = MyProto()
     a.repeated_field.append('test')
     b = MyProto()
 
+    # Repeated fields are combined
     text_format.Parse(repr(a), b)
     text_format.Parse(repr(a), b) # repeated_field contains ["test", "test"]
+
+    # Non-repeated fields cannot be overwritten
+    a.singular_field = 1
+    b.singular_field = 2
+    text_format.Parse(repr(a), b) # ParseError
 
     # Binary version:
     b.ParseFromString(a.SerializeToString()) # repeated_field is now "test"
@@ -659,18 +642,18 @@ def Parse(text,
   Caller is responsible for clearing the message as needed.
 
   Args:
-    text: Message text representation.
-    message: A protocol buffer message to merge into.
+    text (str): Message text representation.
+    message (Message): A protocol buffer message to merge into.
     allow_unknown_extension: if True, skip over missing extensions and keep
       parsing
     allow_field_number: if True, both field number and field name are allowed.
-    descriptor_pool: A DescriptorPool used to resolve Any types.
+    descriptor_pool (DescriptorPool): Descriptor pool used to resolve Any types.
     allow_unknown_field: if True, skip over unknown field and keep
       parsing. Avoid to use this option if possible. It may hide some
       errors (e.g. spelling error on field name)
 
   Returns:
-    The same message passed as argument.
+    Message: The same message passed as argument.
 
   Raises:
     ParseError: On text parsing problems.
@@ -692,21 +675,22 @@ def Merge(text,
   """Parses a text representation of a protocol message into a message.
 
   Like Parse(), but allows repeated values for a non-repeated field, and uses
-  the last one.
+  the last one. This means any non-repeated, top-level fields specified in text
+  replace those in the message.
 
   Args:
-    text: Message text representation.
-    message: A protocol buffer message to merge into.
+    text (str): Message text representation.
+    message (Message): A protocol buffer message to merge into.
     allow_unknown_extension: if True, skip over missing extensions and keep
       parsing
     allow_field_number: if True, both field number and field name are allowed.
-    descriptor_pool: A DescriptorPool used to resolve Any types.
+    descriptor_pool (DescriptorPool): Descriptor pool used to resolve Any types.
     allow_unknown_field: if True, skip over unknown field and keep
       parsing. Avoid to use this option if possible. It may hide some
       errors (e.g. spelling error on field name)
 
   Returns:
-    The same message passed as argument.
+    Message: The same message passed as argument.
 
   Raises:
     ParseError: On text parsing problems.
@@ -727,6 +711,8 @@ def ParseLines(lines,
                descriptor_pool=None,
                allow_unknown_field=False):
   """Parses a text representation of a protocol message into a message.
+
+  See Parse() for caveats.
 
   Args:
     lines: An iterable of lines of a message's text representation.
@@ -760,8 +746,7 @@ def MergeLines(lines,
                allow_unknown_field=False):
   """Parses a text representation of a protocol message into a message.
 
-  Like ParseLines(), but allows repeated values for a non-repeated field, and
-  uses the last one.
+  See Merge() for more details.
 
   Args:
     lines: An iterable of lines of a message's text representation.

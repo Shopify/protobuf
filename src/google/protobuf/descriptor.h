@@ -264,7 +264,7 @@ class PROTOBUF_EXPORT Descriptor {
   // isn't, the result may be garbage.
   void CopyTo(DescriptorProto* proto) const;
 
-  // Write the contents of this decriptor in a human-readable form. Output
+  // Write the contents of this descriptor in a human-readable form. Output
   // will be suitable for re-parsing.
   std::string DebugString() const;
 
@@ -1462,7 +1462,7 @@ class PROTOBUF_EXPORT FileDescriptor {
   static void DependenciesOnceInit(const FileDescriptor* to_init);
   void InternalDependenciesOnceInit() const;
 
-  // These are arranged to minimze padding on 64-bit.
+  // These are arranged to minimize padding on 64-bit.
   int dependency_count_;
   int public_dependency_count_;
   int weak_dependency_count_;
@@ -1812,6 +1812,12 @@ class PROTOBUF_EXPORT DescriptorPool {
   bool TryFindSymbolInFallbackDatabase(const std::string& name) const;
   bool TryFindExtensionInFallbackDatabase(const Descriptor* containing_type,
                                           int field_number) const;
+
+  // This internal find extension method only check with its table and underlay
+  // descriptor_pool's table. It does not check with fallback DB and no
+  // additional proto file will be build in this method.
+  const FieldDescriptor* InternalFindExtensionByNumberNoLock(
+      const Descriptor* extendee, int number) const;
 
   // Like BuildFile() but called internally when the file has been loaded from
   // fallback_database_.  Declared const because it is called by (semantically)

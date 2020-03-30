@@ -66,8 +66,13 @@ inline std::string MacroPrefix(const Options& options) {
 }
 
 inline std::string DeprecatedAttribute(const Options& options,
-                                       bool deprecated) {
-  return deprecated ? "PROTOBUF_DEPRECATED " : "";
+                                       const FieldDescriptor* d) {
+  return d->options().deprecated() ? "PROTOBUF_DEPRECATED " : "";
+}
+
+inline std::string DeprecatedAttribute(const Options& options,
+                                       const EnumValueDescriptor* d) {
+  return d->options().deprecated() ? "PROTOBUF_DEPRECATED_ENUM " : "";
 }
 
 // Commonly-used separator comments.  Thick is a line of '=', thin is a line
@@ -159,7 +164,7 @@ std::string SuperClassName(const Descriptor* descriptor,
                            const Options& options);
 
 // Adds an underscore if necessary to prevent conflicting with a keyword.
-std::string ResolveKeyword(const string& name);
+std::string ResolveKeyword(const std::string& name);
 
 // Get the (unqualified) name that should be used for this field in C++ code.
 // The name is coerced to lower-case to emulate proto1 behavior.  People
@@ -703,6 +708,18 @@ class PROTOC_EXPORT Formatter {
   }
 };
 
+template <class T>
+void PrintFieldComment(const Formatter& format, const T* field) {
+  // Print the field's (or oneof's) proto-syntax definition as a comment.
+  // We don't want to print group bodies so we cut off after the first
+  // line.
+  DebugStringOptions options;
+  options.elide_group_body = true;
+  options.elide_oneof_body = true;
+  std::string def = field->DebugStringWithOptions(options);
+  format("// $1$\n", def.substr(0, def.find_first_of('\n')));
+}
+
 class PROTOC_EXPORT NamespaceOpener {
  public:
   explicit NamespaceOpener(const Formatter& format)
@@ -744,7 +761,15 @@ class PROTOC_EXPORT NamespaceOpener {
   std::vector<std::string> name_stack_;
 };
 
-std::string GetUtf8Suffix(const FieldDescriptor* field, const Options& options);
+enum Utf8CheckMode {
+  STRICT = 0,  // Parsing will fail if non UTF-8 data is in string fields.
+  VERIFY = 1,  // Only log an error but parsing will succeed.
+  NONE = 2,    // No UTF-8 check.
+};
+
+Utf8CheckMode GetUtf8CheckMode(const FieldDescriptor* field,
+                               const Options& options);
+
 void GenerateUtf8CheckCodeForString(const FieldDescriptor* field,
                                     const Options& options, bool for_parse,
                                     const char* parameters,

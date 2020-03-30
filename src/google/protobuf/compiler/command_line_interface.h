@@ -43,6 +43,7 @@
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -96,7 +97,7 @@ class DiskSourceTree;    // importer.h
 //   protoc --cpp_out=outdir --foo_out=outdir --proto_path=src src/foo.proto
 //
 // The .proto file to compile can be specified on the command line using either
-// its physical file path, or a virtual path relative to a diretory specified
+// its physical file path, or a virtual path relative to a directory specified
 // in --proto_path. For example, for src/foo.proto, the following two protoc
 // invocations work the same way:
 //   1. protoc --proto_path=src src/foo.proto (physical file path)
@@ -153,7 +154,7 @@ class PROTOC_EXPORT CommandLineInterface {
   // The compiler determines the executable name to search for by concatenating
   // exe_name_prefix with the unrecognized flag name, removing "_out".  So, for
   // example, if exe_name_prefix is "protoc-" and you pass the flag --foo_out,
-  // the compiler will try to run the program "protoc-foo".
+  // the compiler will try to run the program "protoc-gen-foo".
   //
   // The plugin program should implement the following usage:
   //   plugin [--out=OUTDIR] [--parameter=PARAMETER] PROTO_FILES < DESCRIPTORS
@@ -193,7 +194,7 @@ class PROTOC_EXPORT CommandLineInterface {
   // DEPRECATED. Calling this method has no effect. Protocol compiler now
   // always try to find the .proto file relative to the current directory
   // first and if the file is not found, it will then treat the input path
-  // as a virutal path.
+  // as a virtual path.
   void SetInputsAreProtoPathRelative(bool /* enable */) {}
 
   // Provides some text which will be printed when the --version flag is
@@ -273,6 +274,7 @@ class PROTOC_EXPORT CommandLineInterface {
 
   // Parses input_files_ into parsed_files
   bool ParseInputFiles(DescriptorPool* descriptor_pool,
+                       DiskSourceTree* source_tree,
                        std::vector<const FileDescriptor*>* parsed_files);
 
   // Generate the given output file from the given input.
