@@ -78,6 +78,7 @@ csharp_EXTRA_DIST=                                                           \
   csharp/protos/unittest_import.proto                                        \
   csharp/protos/unittest_issues.proto                                        \
   csharp/protos/unittest_proto3.proto                                        \
+  csharp/protos/unittest_selfreferential_options.proto                       \
   csharp/protos/unittest.proto                                               \
   csharp/src/AddressBook/AddPerson.cs                                        \
   csharp/src/AddressBook/Addressbook.cs                                      \
@@ -85,21 +86,24 @@ csharp_EXTRA_DIST=                                                           \
   csharp/src/AddressBook/ListPeople.cs                                       \
   csharp/src/AddressBook/Program.cs                                          \
   csharp/src/AddressBook/SampleUsage.cs                                      \
+  csharp/src/Google.Protobuf.Benchmarks/BenchmarkDatasetConfig.cs            \
   csharp/src/Google.Protobuf.Benchmarks/BenchmarkMessage1Proto3.cs           \
   csharp/src/Google.Protobuf.Benchmarks/Benchmarks.cs                        \
   csharp/src/Google.Protobuf.Benchmarks/Google.Protobuf.Benchmarks.csproj    \
+  csharp/src/Google.Protobuf.Benchmarks/GoogleMessageBenchmark.cs            \
+  csharp/src/Google.Protobuf.Benchmarks/ParseMessagesBenchmark.cs            \
   csharp/src/Google.Protobuf.Benchmarks/ParseRawPrimitivesBenchmark.cs       \
   csharp/src/Google.Protobuf.Benchmarks/Program.cs                           \
-  csharp/src/Google.Protobuf.Benchmarks/SerializationBenchmark.cs            \
-  csharp/src/Google.Protobuf.Benchmarks/SerializationConfig.cs               \
   csharp/src/Google.Protobuf.Benchmarks/wrapper_benchmark_messages.proto     \
-  csharp/src/Google.Protobuf.Benchmarks/WrapperBenchmark.cs                  \
   csharp/src/Google.Protobuf.Benchmarks/WrapperBenchmarkMessages.cs          \
+  csharp/src/Google.Protobuf.Benchmarks/WriteMessagesBenchmark.cs            \
+  csharp/src/Google.Protobuf.Benchmarks/WriteRawPrimitivesBenchmark.cs       \
   csharp/src/Google.Protobuf.Conformance/Conformance.cs                      \
   csharp/src/Google.Protobuf.Conformance/Google.Protobuf.Conformance.csproj  \
   csharp/src/Google.Protobuf.Conformance/Program.cs                          \
   csharp/src/Google.Protobuf.JsonDump/Google.Protobuf.JsonDump.csproj        \
   csharp/src/Google.Protobuf.JsonDump/Program.cs                             \
+  csharp/src/Google.Protobuf.Test/Buffers/ArrayBufferWriter.cs               \
   csharp/src/Google.Protobuf.Test/ByteStringTest.cs                          \
   csharp/src/Google.Protobuf.Test/CodedInputStreamExtensions.cs              \
   csharp/src/Google.Protobuf.Test/CodedInputStreamTest.cs                    \
@@ -122,6 +126,11 @@ csharp_EXTRA_DIST=                                                           \
   csharp/src/Google.Protobuf.Test/JsonFormatterTest.cs                       \
   csharp/src/Google.Protobuf.Test/JsonParserTest.cs                          \
   csharp/src/Google.Protobuf.Test/JsonTokenizerTest.cs                       \
+  csharp/src/Google.Protobuf.Test/LegacyGeneratedCodeTest.cs                 \
+  csharp/src/Google.Protobuf.Test/MessageParsingHelpers.cs                   \
+  csharp/src/Google.Protobuf.Test/Proto3OptionalTest.cs                      \
+  csharp/src/Google.Protobuf.Test/ReadOnlySequenceFactory.cs                 \
+  csharp/src/Google.Protobuf.Test/RefStructCompatibilityTest.cs              \
   csharp/src/Google.Protobuf.Test/Reflection/CustomOptionsTest.cs            \
   csharp/src/Google.Protobuf.Test/Reflection/DescriptorDeclarationTest.cs    \
   csharp/src/Google.Protobuf.Test/Reflection/DescriptorsTest.cs              \
@@ -148,6 +157,8 @@ csharp_EXTRA_DIST=                                                           \
   csharp/src/Google.Protobuf.Test.TestProtos/UnittestImport.cs                  \
   csharp/src/Google.Protobuf.Test.TestProtos/UnittestIssues.cs                  \
   csharp/src/Google.Protobuf.Test.TestProtos/UnittestProto3.cs                  \
+  csharp/src/Google.Protobuf.Test.TestProtos/UnittestProto3Optional.cs          \
+  csharp/src/Google.Protobuf.Test.TestProtos/UnittestSelfreferentialOptions.cs  \
   csharp/src/Google.Protobuf.Test.TestProtos/UnittestWellKnownTypes.cs          \
   csharp/src/Google.Protobuf.Test.TestProtos/Unittest.cs                        \
   csharp/src/Google.Protobuf.Test/WellKnownTypes/AnyTest.cs                  \
@@ -180,6 +191,7 @@ csharp_EXTRA_DIST=                                                           \
   csharp/src/Google.Protobuf/FieldMaskTree.cs                                \
   csharp/src/Google.Protobuf/FrameworkPortability.cs                         \
   csharp/src/Google.Protobuf/Google.Protobuf.csproj                          \
+  csharp/src/Google.Protobuf/IBufferMessage.cs                               \
   csharp/src/Google.Protobuf/ICustomDiagnosticMessage.cs                     \
   csharp/src/Google.Protobuf/IDeepCloneable.cs                               \
   csharp/src/Google.Protobuf/IExtendableMessage.cs                           \
@@ -194,7 +206,13 @@ csharp_EXTRA_DIST=                                                           \
   csharp/src/Google.Protobuf/MessageExtensions.cs                            \
   csharp/src/Google.Protobuf/MessageParser.cs                                \
   csharp/src/Google.Protobuf/ObjectIntPair.cs                                \
+  csharp/src/Google.Protobuf/ParseContext.cs                                 \
+  csharp/src/Google.Protobuf/ParserInternalState.cs                          \
+  csharp/src/Google.Protobuf/ParsingPrimitives.cs                            \
+  csharp/src/Google.Protobuf/ParsingPrimitivesMessages.cs                    \
+  csharp/src/Google.Protobuf/ParsingPrimitivesWrappers.cs                    \
   csharp/src/Google.Protobuf/ProtoPreconditions.cs                           \
+  csharp/src/Google.Protobuf/SegmentedBufferHelper.cs                        \
   csharp/src/Google.Protobuf/Properties/AssemblyInfo.cs                      \
   csharp/src/Google.Protobuf/Reflection/CustomOptions.cs                     \
   csharp/src/Google.Protobuf/Reflection/Descriptor.cs                        \
@@ -244,11 +262,15 @@ csharp_EXTRA_DIST=                                                           \
   csharp/src/Google.Protobuf/WellKnownTypes/Wrappers.cs                      \
   csharp/src/Google.Protobuf/WellKnownTypes/WrappersPartial.cs               \
   csharp/src/Google.Protobuf/WireFormat.cs                                   \
+  csharp/src/Google.Protobuf/WritingPrimitivesMessages.cs                    \
+  csharp/src/Google.Protobuf/WritingPrimitives.cs                            \
+  csharp/src/Google.Protobuf/WriterInternalState.cs                          \
+  csharp/src/Google.Protobuf/WriteContext.cs                                 \
+  csharp/src/Google.Protobuf/WriteBufferHelper.cs                            \
   csharp/src/Google.Protobuf/UnknownField.cs                                 \
   csharp/src/Google.Protobuf/UnknownFieldSet.cs
 
 java_EXTRA_DIST=                                                                   \
-  java/BUILD                                                                       \
   java/README.md                                                                   \
   java/bom/pom.xml                                                                 \
   java/core/BUILD                                                                  \
@@ -529,13 +551,14 @@ java_EXTRA_DIST=                                                                
   java/util/src/test/java/com/google/protobuf/util/FieldMaskTreeTest.java          \
   java/util/src/test/java/com/google/protobuf/util/FieldMaskUtilTest.java          \
   java/util/src/test/java/com/google/protobuf/util/JsonFormatTest.java             \
-  java/util/src/test/java/com/google/protobuf/util/StructsTest.java                 \
+  java/util/src/test/java/com/google/protobuf/util/StructsTest.java                \
   java/util/src/test/java/com/google/protobuf/util/TimeUtilTest.java               \
   java/util/src/test/java/com/google/protobuf/util/ValuesTest.java                 \
   java/util/src/test/proto/com/google/protobuf/util/json_test.proto
 
 objectivec_EXTRA_DIST=                                                       \
   objectivec/.clang-format                                                   \
+  objectivec/BUILD                                                           \
   objectivec/DevTools/check_version_stamps.sh                                \
   objectivec/DevTools/compile_testing_protos.sh                              \
   objectivec/DevTools/full_mac_build.sh                                      \
@@ -745,22 +768,28 @@ php_EXTRA_DIST=                                                       \
   composer.json                                                       \
   php/README.md                                                       \
   php/composer.json                                                   \
+  php/ext/google/protobuf/arena.c                                     \
+  php/ext/google/protobuf/arena.h                                     \
   php/ext/google/protobuf/array.c                                     \
-  php/ext/google/protobuf/builtin_descriptors.inc                     \
+  php/ext/google/protobuf/array.h                                     \
+  php/ext/google/protobuf/bundled_php.h                               \
   php/ext/google/protobuf/config.m4                                   \
+  php/ext/google/protobuf/convert.c                                   \
+  php/ext/google/protobuf/convert.h                                   \
   php/ext/google/protobuf/def.c                                       \
-  php/ext/google/protobuf/encode_decode.c                             \
+  php/ext/google/protobuf/def.h                                       \
+  php/ext/google/protobuf/make-preload.php                            \
   php/ext/google/protobuf/map.c                                       \
+  php/ext/google/protobuf/map.h                                       \
   php/ext/google/protobuf/message.c                                   \
+  php/ext/google/protobuf/message.h                                   \
+  php/ext/google/protobuf/names.c                                     \
+  php/ext/google/protobuf/names.h                                     \
   php/ext/google/protobuf/package.xml                                 \
+  php/ext/google/protobuf/php-upb.c                                   \
+  php/ext/google/protobuf/php-upb.h                                   \
   php/ext/google/protobuf/protobuf.c                                  \
   php/ext/google/protobuf/protobuf.h                                  \
-  php/ext/google/protobuf/storage.c                                   \
-  php/ext/google/protobuf/type_check.c                                \
-  php/ext/google/protobuf/upb.c                                       \
-  php/ext/google/protobuf/upb.h                                       \
-  php/ext/google/protobuf/utf8.c                                      \
-  php/ext/google/protobuf/utf8.h                                      \
   php/generate_descriptor_protos.sh                                   \
   php/phpunit.xml                                                     \
   php/release.sh                                                      \
@@ -895,6 +924,7 @@ php_EXTRA_DIST=                                                       \
   php/tests/descriptors_test.php                                      \
   php/tests/encode_decode_test.php                                    \
   php/tests/gdb_test.sh                                               \
+  php/tests/generate_protos.sh                                        \
   php/tests/generated_class_test.php                                  \
   php/tests/generated_phpdoc_test.php                                 \
   php/tests/generated_service_test.php                                \
@@ -978,6 +1008,7 @@ python_EXTRA_DIST=                                                           \
   python/google/protobuf/internal/service_reflection_test.py                 \
   python/google/protobuf/internal/symbol_database_test.py                    \
   python/google/protobuf/internal/test_bad_identifiers.proto                 \
+  python/google/protobuf/internal/test_proto3_optional.proto                 \
   python/google/protobuf/internal/test_util.py                               \
   python/google/protobuf/internal/testing_refleaks.py                        \
   python/google/protobuf/internal/text_encoding_test.py                      \
@@ -1192,6 +1223,10 @@ js_EXTRA_DIST=                                                         \
   js/data.proto                                                        \
   js/debug.js                                                          \
   js/debug_test.js                                                     \
+  js/experimental/runtime/kernel/message_set.js                        \
+  js/experimental/runtime/kernel/message_set_test.js                   \
+  js/experimental/runtime/kernel/tag.js                                \
+  js/experimental/runtime/kernel/tag_test.js                           \
   js/gulpfile.js                                                       \
   js/jasmine.json                                                      \
   js/map.js                                                            \

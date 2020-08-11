@@ -3,7 +3,6 @@
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test", "objc_library", native_cc_proto_library = "cc_proto_library")
 load("@rules_proto//proto:defs.bzl", "proto_lang_toolchain", "proto_library")
-load("@rules_proto//proto/private:native.bzl", "native_proto_common")
 load("@rules_python//python:defs.bzl", "py_library")
 load(":cc_proto_blacklist_test.bzl", "cc_proto_blacklist_test")
 
@@ -486,7 +485,6 @@ RELATIVE_LITE_TEST_PROTOS = [
     "google/protobuf/unittest_import_lite.proto",
     "google/protobuf/unittest_import_public_lite.proto",
     "google/protobuf/unittest_lite.proto",
-    "google/protobuf/unittest_no_arena_lite.proto",
 ]
 
 LITE_TEST_PROTOS = ["src/" + s for s in RELATIVE_LITE_TEST_PROTOS]
@@ -513,8 +511,6 @@ RELATIVE_TEST_PROTOS = [
     "google/protobuf/unittest_lite_imports_nonlite.proto",
     "google/protobuf/unittest_mset.proto",
     "google/protobuf/unittest_mset_wire_format.proto",
-    "google/protobuf/unittest_no_arena.proto",
-    "google/protobuf/unittest_no_arena_import.proto",
     "google/protobuf/unittest_no_field_presence.proto",
     "google/protobuf/unittest_no_generic_services.proto",
     "google/protobuf/unittest_optimize_for.proto",
@@ -524,6 +520,7 @@ RELATIVE_TEST_PROTOS = [
     "google/protobuf/unittest_proto3_arena.proto",
     "google/protobuf/unittest_proto3_arena_lite.proto",
     "google/protobuf/unittest_proto3_lite.proto",
+    "google/protobuf/unittest_proto3_optional.proto",
     "google/protobuf/unittest_well_known_types.proto",
     "google/protobuf/util/internal/testdata/anys.proto",
     "google/protobuf/util/internal/testdata/books.proto",
@@ -947,13 +944,9 @@ cc_library(
     ],
 )
 
-# Note: We use `native_proto_common` here because we depend on an implementation-detail of
-# `proto_lang_toolchain`, which may not be available on `proto_common`.
-reject_blacklisted_files = hasattr(native_proto_common, "proto_lang_toolchain_rejects_files_do_not_use_or_we_will_break_you_without_mercy")
-cc_toolchain_blacklisted_protos = [proto + "_proto" for proto in WELL_KNOWN_PROTO_MAP.keys()] if reject_blacklisted_files else [":well_known_protos"]
 proto_lang_toolchain(
     name = "cc_toolchain",
-    blacklisted_protos = cc_toolchain_blacklisted_protos,
+    blacklisted_protos = [proto + "_proto" for proto in WELL_KNOWN_PROTO_MAP.keys()],
     command_line = "--cpp_out=$(OUT)",
     runtime = ":protobuf",
     visibility = ["//visibility:public"],
@@ -961,86 +954,13 @@ proto_lang_toolchain(
 
 alias(
     name = "objectivec",
-    actual = ":protobuf_objc",
+    actual = "//objectivec",
     visibility = ["//visibility:public"],
 )
 
-objc_library(
+alias(
     name = "protobuf_objc",
-    hdrs = [
-        "objectivec/GPBArray.h",
-        "objectivec/GPBBootstrap.h",
-        "objectivec/GPBCodedInputStream.h",
-        "objectivec/GPBCodedOutputStream.h",
-        "objectivec/GPBDescriptor.h",
-        "objectivec/GPBDictionary.h",
-        "objectivec/GPBExtensionInternals.h",
-        "objectivec/GPBExtensionRegistry.h",
-        "objectivec/GPBMessage.h",
-        "objectivec/GPBProtocolBuffers.h",
-        "objectivec/GPBProtocolBuffers_RuntimeSupport.h",
-        "objectivec/GPBRootObject.h",
-        "objectivec/GPBRuntimeTypes.h",
-        "objectivec/GPBUnknownField.h",
-        "objectivec/GPBUnknownFieldSet.h",
-        "objectivec/GPBUtilities.h",
-        "objectivec/GPBWellKnownTypes.h",
-        "objectivec/GPBWireFormat.h",
-        "objectivec/google/protobuf/Any.pbobjc.h",
-        "objectivec/google/protobuf/Api.pbobjc.h",
-        "objectivec/google/protobuf/Duration.pbobjc.h",
-        "objectivec/google/protobuf/Empty.pbobjc.h",
-        "objectivec/google/protobuf/FieldMask.pbobjc.h",
-        "objectivec/google/protobuf/SourceContext.pbobjc.h",
-        "objectivec/google/protobuf/Struct.pbobjc.h",
-        "objectivec/google/protobuf/Timestamp.pbobjc.h",
-        "objectivec/google/protobuf/Type.pbobjc.h",
-        "objectivec/google/protobuf/Wrappers.pbobjc.h",
-        # Package private headers, but exposed because the generated sources
-        # need to use them.
-        "objectivec/GPBArray_PackagePrivate.h",
-        "objectivec/GPBCodedInputStream_PackagePrivate.h",
-        "objectivec/GPBCodedOutputStream_PackagePrivate.h",
-        "objectivec/GPBDescriptor_PackagePrivate.h",
-        "objectivec/GPBDictionary_PackagePrivate.h",
-        "objectivec/GPBMessage_PackagePrivate.h",
-        "objectivec/GPBRootObject_PackagePrivate.h",
-        "objectivec/GPBUnknownFieldSet_PackagePrivate.h",
-        "objectivec/GPBUnknownField_PackagePrivate.h",
-        "objectivec/GPBUtilities_PackagePrivate.h",
-    ],
-    copts = [
-        "-Wno-vla",
-    ],
-    includes = [
-        "objectivec",
-    ],
-    non_arc_srcs = [
-        "objectivec/GPBArray.m",
-        "objectivec/GPBCodedInputStream.m",
-        "objectivec/GPBCodedOutputStream.m",
-        "objectivec/GPBDescriptor.m",
-        "objectivec/GPBDictionary.m",
-        "objectivec/GPBExtensionInternals.m",
-        "objectivec/GPBExtensionRegistry.m",
-        "objectivec/GPBMessage.m",
-        "objectivec/GPBRootObject.m",
-        "objectivec/GPBUnknownField.m",
-        "objectivec/GPBUnknownFieldSet.m",
-        "objectivec/GPBUtilities.m",
-        "objectivec/GPBWellKnownTypes.m",
-        "objectivec/GPBWireFormat.m",
-        "objectivec/google/protobuf/Any.pbobjc.m",
-        "objectivec/google/protobuf/Api.pbobjc.m",
-        "objectivec/google/protobuf/Duration.pbobjc.m",
-        "objectivec/google/protobuf/Empty.pbobjc.m",
-        "objectivec/google/protobuf/FieldMask.pbobjc.m",
-        "objectivec/google/protobuf/SourceContext.pbobjc.m",
-        "objectivec/google/protobuf/Struct.pbobjc.m",
-        "objectivec/google/protobuf/Timestamp.pbobjc.m",
-        "objectivec/google/protobuf/Type.pbobjc.m",
-        "objectivec/google/protobuf/Wrappers.pbobjc.m",
-    ],
+    actual = "//objectivec",
     visibility = ["//visibility:public"],
 )
 

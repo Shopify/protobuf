@@ -576,12 +576,12 @@ bool MessageDifferencer::Compare(const Message& message1,
   bool unknown_compare_result = true;
   // Ignore unknown fields in EQUIVALENT mode
   if (message_field_comparison_ != EQUIVALENT) {
-    const UnknownFieldSet* unknown_field_set1 =
-        &reflection1->GetUnknownFields(message1);
-    const UnknownFieldSet* unknown_field_set2 =
-        &reflection2->GetUnknownFields(message2);
-    if (!CompareUnknownFields(message1, message2, *unknown_field_set1,
-                              *unknown_field_set2, parent_fields)) {
+    const UnknownFieldSet& unknown_field_set1 =
+        reflection1->GetUnknownFields(message1);
+    const UnknownFieldSet& unknown_field_set2 =
+        reflection2->GetUnknownFields(message2);
+    if (!CompareUnknownFields(message1, message2, unknown_field_set1,
+                              unknown_field_set2, parent_fields)) {
       if (reporter_ == NULL) {
         return false;
       }
@@ -1243,7 +1243,7 @@ bool MessageDifferencer::UnpackAny(const Message& any,
   }
   data->reset(dynamic_message_factory_->GetPrototype(desc)->New());
   std::string serialized_value = reflection->GetString(any, value_field);
-  if (!(*data)->ParseFromString(serialized_value)) {
+  if (!(*data)->ParsePartialFromString(serialized_value)) {
     GOOGLE_DLOG(ERROR) << "Failed to parse value for " << full_type_name;
     return false;
   }
@@ -1526,7 +1526,7 @@ int MaximumMatcher::FindMaximumMatch(bool early_return) {
     }
   }
   // Backfill match_list1_ as we only filled match_list2_ when finding
-  // argumenting pathes.
+  // argumenting paths.
   for (int i = 0; i < count2_; ++i) {
     if ((*match_list2_)[i] != -1) {
       (*match_list1_)[(*match_list2_)[i]] = i;
