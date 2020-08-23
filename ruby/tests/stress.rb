@@ -25,6 +25,7 @@ module StressTest
                              M.new(:foo => "world")])
     end
     def test_stress
+      omit("too slow")
       m = get_msg
       data = TestMessage.encode(m)
       100_000.times do

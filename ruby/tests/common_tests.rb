@@ -1012,6 +1012,7 @@ module CommonTests
   end
 
   def test_stress_test
+    omit("slow")
     m = proto_module::TestMessage.new
     m.optional_int32 = 42
     m.optional_int64 = 0x100000000

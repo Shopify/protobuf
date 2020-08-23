@@ -375,6 +375,7 @@ module BasicTest
     end
 
     def test_concurrent_decoding
+      omit("too slow")
       o = Outer.new
       o.items[0] = Inner.new
       raw = Outer.encode(o)

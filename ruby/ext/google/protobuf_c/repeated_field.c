@@ -128,13 +128,13 @@ VALUE RepeatedField_index(int argc, VALUE* argv, VALUE _self) {
       return native_slot_get(field_type, field_type_class, memory);
     }else{
       /* check if idx is Range */
-      switch (rb_range_beg_len(arg, &beg, &len, self->size, 0)) {
-        case Qfalse:
-          break;
-        case Qnil:
+      VALUE ret = rb_range_beg_len(arg, &beg, &len, self->size, 0);
+      if (ret == Qfalse) {
+        /* fall through */
+      } else if (ret == Qnil) {
           return Qnil;
-        default:
-          return RepeatedField_subarray(_self, beg, len);
+      } else {
+        return RepeatedField_subarray(_self, beg, len);
       }
     }
   }
