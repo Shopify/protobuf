@@ -31,12 +31,22 @@ VALUE MessageOrEnum_GetDescriptor(VALUE klass) {
 // -----------------------------------------------------------------------------
 
 typedef struct {
+  char** field_names;
+  size_t size;
+} FieldCache;
+
+static size_t FieldCache_memsize(FieldCache* cache) {
+  return sizeof(FieldCache) + (cache->size * sizeof(char*));
+}
+
+typedef struct {
   // IMPORTANT: WB_PROTECTED objects must only use the RB_OBJ_WRITE()
   // macro to update VALUE references, as to trigger write barriers.
   VALUE arena;
   const upb_Message* msg;  // Can get as mutable when non-frozen.
   const upb_MessageDef*
       msgdef;  // kept alive by self.class.descriptor reference.
+  FieldCache* field_cache;
 } Message;
 
 static void Message_mark(void* _self) {
@@ -44,7 +54,15 @@ static void Message_mark(void* _self) {
   rb_gc_mark(self->arena);
 }
 
-static size_t Message_memsize(const void* _self) { return sizeof(Message); }
+static size_t Message_memsize(const void* _self) {
+  Message *self = (Message*)_self;
+
+  if(NULL == self->field_cache) {
+    return sizeof(Message);
+  } else {
+    return sizeof(Message) + FieldCache_memsize(self->field_cache);
+  }
+}
 
 static rb_data_type_t Message_type = {
     "Google::Protobuf::Message",
@@ -52,10 +70,44 @@ static rb_data_type_t Message_type = {
     .flags = RUBY_TYPED_FREE_IMMEDIATELY | RUBY_TYPED_WB_PROTECTED,
 };
 
+void Message_with_FieldCache_free(void *_self) {
+  Message *self = (Message*)_self;
+
+  xfree(self->field_cache->field_names);
+  xfree(self->field_cache);
+  xfree(self);
+}
+
+static rb_data_type_t Message_with_FieldCache_type = {
+    "Google::Protobuf::Message",
+    {Message_mark, Message_with_FieldCache_free, Message_memsize},
+    .flags = RUBY_TYPED_FREE_IMMEDIATELY | RUBY_TYPED_WB_PROTECTED,
+};
+
 static Message* ruby_to_Message(VALUE msg_rb) {
   Message* msg;
   TypedData_Get_Struct(msg_rb, Message, &Message_type, msg);
   return msg;
+}
+
+static FieldCache* Message_FieldCache_alloc_and_init(Message* message) {
+  const upb_MessageDef* msgdef = message->msgdef;
+
+  int field_count = upb_MessageDef_FieldCount(msgdef);
+
+  FieldCache* cache = ALLOC(FieldCache);
+  cache->size = field_count;
+
+  cache->field_names = ALLOC_N(char*, field_count);
+
+  upb_FieldDef* f;
+
+  for (int i = 0; i < field_count; i++) {
+    f = upb_MessageDef_Field(msgdef, i);
+    cache->field_names[i] = upb_FieldDef_Name(f);
+  }
+
+  return cache;
 }
 
 static VALUE Message_alloc(VALUE klass) {
@@ -66,8 +118,30 @@ static VALUE Message_alloc(VALUE klass) {
   msg->msgdef = Descriptor_GetMsgDef(descriptor);
   msg->arena = Qnil;
   msg->msg = NULL;
+  msg->field_cache = NULL;
 
   ret = TypedData_Wrap_Struct(klass, &Message_type, msg);
+  rb_ivar_set(ret, descriptor_instancevar_interned, descriptor);
+
+  return ret;
+}
+
+static VALUE Message_alloc_with_FieldCache(VALUE klass) {
+  VALUE descriptor = rb_ivar_get(klass, descriptor_instancevar_interned);
+
+  Message* msg = ALLOC(Message);
+
+  VALUE ret;
+
+  msg->msgdef = Descriptor_GetMsgDef(descriptor);
+
+  FieldCache* field_cache = Message_FieldCache_alloc_and_init(msg);
+
+  msg->arena = Qnil;
+  msg->msg = NULL;
+  msg->field_cache = field_cache;
+
+  ret = TypedData_Wrap_Struct(klass, &Message_with_FieldCache_type, msg);
   rb_ivar_set(ret, descriptor_instancevar_interned, descriptor);
 
   return ret;
@@ -1410,6 +1484,7 @@ static void Message_define_class(VALUE klass) {
   rb_define_singleton_method(klass, "decode_json", Message_decode_json, -1);
   rb_define_singleton_method(klass, "encode_json", Message_encode_json, -1);
   rb_define_singleton_method(klass, "descriptor", Message_descriptor, 0);
+  rb_define_singleton_method(klass, "alloc_with_field_cache", Message_alloc_with_FieldCache, 0);
 }
 
 void Message_register(VALUE protobuf) {
