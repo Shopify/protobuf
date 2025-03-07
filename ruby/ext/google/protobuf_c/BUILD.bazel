@@ -21,6 +21,7 @@ PROTOBUF_C_SOURCES = [
     "shared_convert.h",
     "shared_message.c",
     "shared_message.h",
+    "field_cache.c",
     "wrap_memcpy.c",
 ]
 

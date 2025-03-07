@@ -11,6 +11,7 @@
 #include "map.h"
 #include "message.h"
 #include "repeated_field.h"
+#include "field_cache.h"
 
 VALUE cParseError;
 VALUE cTypeError;
@@ -333,6 +334,7 @@ __attribute__((visibility("default"))) void Init_protobuf_c() {
   RepeatedField_register(protobuf);
   Map_register(protobuf);
   Message_register(protobuf);
+  FieldCache_register(protobuf);
 
   cParseError = rb_const_get(protobuf, rb_intern("ParseError"));
   rb_gc_register_mark_object(cParseError);
