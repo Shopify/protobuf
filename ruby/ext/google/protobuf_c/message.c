@@ -937,6 +937,36 @@ static VALUE Message_index_by_ID(VALUE _self, VALUE field_name) {
   return Message_getfield(_self, field);
 }
 
+static VALUE Message_index_by_int_index(Message *self, int index) {
+  const upb_FieldDef* field;
+
+  field = FieldCache_field_for_ID(cache, RB_SYM2ID(field_name));
+
+  if (field == NULL) {
+    return Qnil;
+  }
+
+  return Message_getfield(_self, field);
+}
+
+typedef struct {
+  upb_FieldDef* field;
+  VALUE (*getter)(struct FieldGetter*, Message*);
+} FieldGetter;
+
+VALUE FieldGetter_get(FieldGetter* self, Message *message) {
+  const upb_FieldDef* field = upb_MessageDef_field(self->field_index);
+  return Message_getfield(message, field);
+}
+
+FieldGetter* make_field_getter(upb_FieldDef* field) {
+  // TODO memory management
+  FieldGetter* getter = ALLOC(FieldGetter);
+  getter->field = field;
+  getter->getter = FieldGetter_get;
+  return getter;
+}
+
 /*
  * call-seq:
  *     Message.[]=(index, value)
@@ -1240,12 +1270,23 @@ VALUE build_class_from_descriptor(VALUE descriptor) {
     rb_raise(rb_eRuntimeError, "Descriptor does not have assigned name.");
   }
 
+  VALUE field_cache_rb = FieldCache_init_rb(msgdef);
+  FieldCache* field_cache = ruby_to_FieldCache(field_cache_rb);
+
   klass = rb_define_class_id(
       // Docs say this parameter is ignored. User will assign return value to
       // their own toplevel constant class name.
       rb_intern("Message"), cAbstractMessage);
   rb_ivar_set(klass, descriptor_instancevar_interned, descriptor);
-  rb_ivar_set(klass, fieldcache_instancevar_interned, FieldCache_init_rb(msgdef));
+  rb_ivar_set(klass, fieldcache_instancevar_interned, field_cache_rb);
+
+  const upb_FieldDef* f;
+
+  for(int i = 0; i < field_cache.size; i++) {
+    f = upb_MessageDef_Field(msgdef, i);
+
+    rb_define_method(klass, upb_FieldDef_Name(f), Message_getter(f), 0);
+  }
 
   return klass;
 }
