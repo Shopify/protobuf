@@ -115,6 +115,50 @@ std::string RubifyConstant(absl::string_view name) {
   return ret;
 }
 
+const std::unordered_set<std::string> RUBY_RESERVED_WORDS = {
+  "__ENCODING__",
+  "__LINE__",
+  "__FILE__",
+  "BEGIN",
+  "END",
+  "alias",
+  "and",
+  "begin",
+  "break",
+  "case",
+  "class",
+  "def",
+  "defined?",
+  "do",
+  "else",
+  "elsif",
+  "end",
+  "ensure",
+  "false",
+  "for",
+  "if",
+  "in",
+  "module",
+  "next",
+  "nil",
+  "not",
+  "or",
+  "redo",
+  "rescue",
+  "retry",
+  "return",
+  "self",
+  "super",
+  "then",
+  "true",
+  "undef",
+  "unless",
+  "until",
+  "when",
+  "while",
+  "yield"
+};
+
 void GenerateMessageAssignment(absl::string_view prefix,
                                const Descriptor* message,
                                io::Printer* printer) {
@@ -124,12 +168,60 @@ void GenerateMessageAssignment(absl::string_view prefix,
     return;
   }
 
-  printer->Print("$prefix$$name$ = ", "prefix", prefix, "name",
-                 RubifyConstant(message->name()));
+  std::string class_name = RubifyConstant(message->name());
+
+  printer->Print("$prefix$$name$ = ", "prefix", prefix, "name", class_name);
   printer->Print(
       "::Google::Protobuf::DescriptorPool.generated_pool."
       "lookup(\"$full_name$\").msgclass\n",
       "full_name", message->full_name());
+
+  printer->Print("\nclass $prefix$$name$\n", "prefix", prefix, "name", class_name);
+
+  printer->Indent();
+
+  printer->Print("def initialize(\n");
+  printer->Indent();
+
+  int field_count = message->field_count();
+
+  for (int i = 0; i < field_count; i++) {
+    const FieldDescriptor* field = message->field(i);
+    printer->Print(
+        "$name$: ::Google::Protobuf::VALUE_NOT_PROVIDED$comma_maybe$\n",
+        "name", field->name(),
+        "comma_maybe", i == field_count - 1 ? "" : ",");
+  }
+
+  printer->Outdent();
+  printer->Print(")\n");
+
+  printer->Indent();
+
+  printer->Print("init_arena_and_fields(\n");
+
+  printer->Indent();
+  for (int i = 0; i < message->field_count(); i++) {
+    const FieldDescriptor* field = message->field(i);
+    const std::string field_name = std::string(field->name());
+
+    if(RUBY_RESERVED_WORDS.count(field_name) > 0) {
+      printer->Print("binding.local_variable_get(:$name$),\n", "name", field_name);
+    } else {
+      printer->Print("$name$,\n", "name", field_name);
+    }
+  }
+
+  printer->Outdent();
+
+  printer->Print(")\n");
+
+  printer->Outdent();
+
+  printer->Print("end\n");
+
+  printer->Outdent();
+  printer->Print("end\n\n");
 
   std::string nested_prefix =
       absl::StrCat(prefix, RubifyConstant(message->name()), "::");

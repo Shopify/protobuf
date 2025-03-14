@@ -689,7 +689,7 @@ static VALUE Message_initialize(int argc, VALUE* argv, VALUE _self) {
 
 /*
  * call-seq:
- *     Message.create(*args) => new_message
+ *     Message#init_arena_and_fields(*args) => new_message
  *
  * Creates a new instance of the given message class. The difference between
  * this and the default constructor is this method takes positional arguments.
@@ -703,9 +703,7 @@ static VALUE Message_initialize(int argc, VALUE* argv, VALUE _self) {
  * have been added to a pool. The method definitions described here on the
  * Message class are provided on each concrete message class.
  */
-static VALUE Message_create(int argc, VALUE* argv, VALUE klass_rb) {
-  VALUE message_rb = Message_alloc(klass_rb);
-
+static VALUE Message_init_arena_and_fields(int argc, VALUE* argv, VALUE message_rb) {
   Message* message = ruby_to_Message(message_rb);
   VALUE arena_rb = Arena_new();
   upb_Arena* arena = Arena_get(arena_rb);
@@ -724,7 +722,7 @@ static VALUE Message_create(int argc, VALUE* argv, VALUE klass_rb) {
     Message_InitFieldFromValue(message_upb, f, argv[i], arena);
   }
 
-  return message_rb;
+  return Qnil;
 }
 
 /*
@@ -1449,12 +1447,15 @@ static void Message_define_class(VALUE klass) {
   rb_define_method(klass, "to_s", Message_inspect, 0);
   rb_define_method(klass, "[]", Message_index, 1);
   rb_define_method(klass, "[]=", Message_index_set, 2);
+
+  rb_define_private_method(klass, "init_arena_and_fields",
+                   Message_init_arena_and_fields, -1);
+
   rb_define_singleton_method(klass, "decode", Message_decode, -1);
   rb_define_singleton_method(klass, "encode", Message_encode, -1);
   rb_define_singleton_method(klass, "decode_json", Message_decode_json, -1);
   rb_define_singleton_method(klass, "encode_json", Message_encode_json, -1);
   rb_define_singleton_method(klass, "descriptor", Message_descriptor, 0);
-  rb_define_singleton_method(klass, "create", Message_create, -1);
 }
 
 void Message_register(VALUE protobuf) {
