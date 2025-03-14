@@ -1209,6 +1209,19 @@ VALUE build_class_from_descriptor(VALUE descriptor) {
       // their own toplevel constant class name.
       rb_intern("Message"), cAbstractMessage);
   rb_ivar_set(klass, descriptor_instancevar_interned, descriptor);
+
+  /*
+   * VALUE klass = rb_const_get("Google::Protobuf");
+   * VALUE mid = rb_get_method(klass, "create_getter");
+   * VALUE field_accessor = RTYPEDDATA(field_def);
+   *
+   * VALUE args[3] = {klass, field_name, field_accessor};
+   *
+   * rb_vm_call(klass, mid, 3, &args);
+   */
+
+  // klass.define_instance_method(field_name, Google::Protobuf::AbstractMessage.method(:invoke_getter), field_accessor);
+
   return klass;
 }
 
