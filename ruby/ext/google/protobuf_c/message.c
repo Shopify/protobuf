@@ -40,6 +40,7 @@ typedef struct {
   const upb_Message* msg;  // Can get as mutable when non-frozen.
   const upb_MessageDef*
       msgdef;  // kept alive by self.class.descriptor reference.
+  const st_table* field_cache;
 } Message;
 
 static void Message_mark(void* _self) {
@@ -69,6 +70,16 @@ static VALUE Message_alloc(VALUE klass) {
   msg->msgdef = Descriptor_GetMsgDef(descriptor);
   msg->arena = Qnil;
   msg->msg = NULL;
+  msg->field_cache = st_init_numtable();  // TODO this is a memory leak
+
+  int field_count = upb_MessageDef_FieldCount(msg->msgdef);
+
+  for(int i = 0; i < field_count; i++) {
+    const upb_FieldDef* field = upb_MessageDef_Field(msg->msgdef, i);
+    const char* field_name = upb_FieldDef_Name(field);
+    ID field_name_id = rb_intern(field_name);
+    st_insert(msg->field_cache, (st_data_t)field_name_id, (st_data_t)field);
+  }
 
   ret = TypedData_Wrap_Struct(klass, &Message_type, msg);
   rb_ivar_set(ret, descriptor_instancevar_interned, descriptor);
@@ -907,7 +918,7 @@ static VALUE Message_index(VALUE _self, VALUE field_name) {
 
 static VALUE Message_index_alt(VALUE _self, VALUE field_name) {
   Message* self = ruby_to_Message(_self);
-  const upb_FieldDef* field;
+  const upb_FieldDef* f;
 
   //  Check_Type(field_name, T_STRING | T_SYMBOL);
 
@@ -919,16 +930,36 @@ static VALUE Message_index_alt(VALUE _self, VALUE field_name) {
     field_name_id = SYM2ID(field_name);
   }
 
-  VALUE klass = rb_class_of(_self);
-  VALUE descriptor_rb = rb_ivar_get(klass, descriptor_instancevar_interned);
-
-  st_table* field_cache = field_cache_for_RubyDescriptor(descriptor_rb);
-
-  if(!st_lookup(field_cache, field_name_id, &field)) {
+  if(!st_lookup(self->field_cache, field_name_id, &f)) {
     return Qnil;
   }
 
-  return Message_getfield(_self, field);
+  // Copied from Message_get() to avoid two calls to ruby_to_Message().
+  if (upb_Message_IsFrozen(self->msg)) {
+    return Message_getfield_frozen(self->msg, f, self->arena);
+  }
+
+  upb_Message* msg = Message_GetMutable(_self, NULL);
+  upb_Arena* arena = Arena_get(self->arena);
+  if (upb_FieldDef_IsMap(f)) {
+    upb_Map* map = upb_Message_Mutable(msg, f, arena).map;
+    const upb_FieldDef* key_f = map_field_key(f);
+    const upb_FieldDef* val_f = map_field_value(f);
+    upb_CType key_type = upb_FieldDef_CType(key_f);
+    TypeInfo value_type_info = TypeInfo_get(val_f);
+    return Map_GetRubyWrapper(map, key_type, value_type_info, self->arena);
+  } else if (upb_FieldDef_IsRepeated(f)) {
+    upb_Array* arr = upb_Message_Mutable(msg, f, arena).array;
+    return RepeatedField_GetRubyWrapper(arr, TypeInfo_get(f), self->arena);
+  } else if (upb_FieldDef_IsSubMessage(f)) {
+    if (!upb_Message_HasFieldByDef(msg, f)) return Qnil;
+    upb_Message* submsg = upb_Message_Mutable(msg, f, arena).msg;
+    const upb_MessageDef* m = upb_FieldDef_MessageSubDef(f);
+    return Message_GetRubyWrapper(submsg, m, self->arena);
+  } else {
+    upb_MessageValue msgval = upb_Message_GetFieldByDef(msg, f);
+    return Convert_UpbToRuby(msgval, TypeInfo_get(f), self->arena);
+  }
 }
 
 /*
