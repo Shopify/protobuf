@@ -19,7 +19,7 @@ if ENV["LD"]
 end
 
 if RUBY_PLATFORM =~ /darwin/ || RUBY_PLATFORM =~ /linux/ || RUBY_PLATFORM =~ /freebsd/
-  $CFLAGS += " -std=gnu99 -O3 -DNDEBUG -fvisibility=hidden -Wall -Wsign-compare -Wno-declaration-after-statement"
+  $CFLAGS += " -std=gnu99 -O0 -g -fno-omit-frame-pointer -Wall -Wsign-compare -Wno-declaration-after-statement"
 else
   $CFLAGS += " -std=gnu99 -O3 -DNDEBUG"
 end
