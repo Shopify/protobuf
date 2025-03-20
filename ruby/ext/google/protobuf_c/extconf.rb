@@ -60,6 +60,7 @@ if debug_symbols_output_dir
     o.puts "generate_dbg_file: $(DLLIB)"
     o.puts "\t$(ECHO) Saving debug symbols in #{debug_symbols_output_dir}/#{debug_symbols}"
     o.puts "\t$(Q) objcopy --only-keep-debug $(DLLIB) #{debug_symbols_output_dir}/#{debug_symbols}"
+    # The previous all was "$(DLLIB)" so this just inserts a step.
     o.puts "all: generate_dbg_file"
   end
 end
