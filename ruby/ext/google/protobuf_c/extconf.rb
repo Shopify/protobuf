@@ -24,7 +24,7 @@ debug_enabled = ENV["PROTOBUF_CONFIG"] == "dbg"
 def determine_debug_symbols_output_dir(debug_enabled)
   return nil if debug_enabled
 
-  dir = ENV["PROTOBUF_RUBY_DEBUG_SYMBOLS_OUTPUT_DIR"]
+  dir = ENV["PROTOBUF_RUBY_DEBUG_SYMBOLS_OUTPUT_DIR"].to_s.strip
   dir.nil? || dir.empty? ? nil : dir
 end
 
