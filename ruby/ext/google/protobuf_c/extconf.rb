@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 
 require 'mkmf'
-require_relative '../../../lib/google/protobuf/version'
+require 'rubygems'
 
 ext_name = "google/protobuf_c"
 
@@ -28,9 +28,10 @@ def determine_debug_symbols_output_dir(debug_enabled)
   dir.nil? || dir.empty? ? nil : dir
 end
 
+gem_version = Gem::Specification.load(File.expand_path("../../../../google-protobuf.gemspec", __FILE__)).version
 debug_symbols_output_dir = determine_debug_symbols_output_dir(debug_enabled)
 ruby_major_minor = /(\d+\.\d+)/.match(RUBY_VERSION).to_s
-debug_symbols = "google-protobuf-#{Google::Protobuf::VERSION}-#{RUBY_ENGINE}-#{RUBY_PLATFORM}-ruby-#{ruby_major_minor}.dbg"
+debug_symbols = "google-protobuf-#{gem_version}-#{RUBY_ENGINE}-#{RUBY_PLATFORM}-ruby-#{ruby_major_minor}.dbg"
 
 additional_c_flags = debug_enabled ? "-O0 -fno-omit-frame-pointer -fvisibility=default -g" : "-O3 -DNDEBUG -fvisibility=hidden"
 
