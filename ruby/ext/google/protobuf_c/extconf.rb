@@ -32,7 +32,7 @@ debug_symbols_output_dir = determine_debug_symbols_output_dir(debug_enabled)
 ruby_major_minor = /(\d+\.\d+)/.match(RUBY_VERSION).to_s
 debug_symbols = "google-protobuf-#{Google::Protobuf::VERSION}-#{RUBY_PLATFORM}-ruby-#{ruby_major_minor}.dbg"
 
-additional_c_flags = debug_enabled ? "-O0 -fno-omit-frame-pointer -fvisibility=default" : "-O3 -DNDEBUG -fvisibility=hidden"
+additional_c_flags = debug_enabled ? "-O0 -fno-omit-frame-pointer -fvisibility=default -g" : "-O3 -DNDEBUG -fvisibility=hidden"
 
 if RUBY_PLATFORM =~ /darwin/ || RUBY_PLATFORM =~ /linux/ || RUBY_PLATFORM =~ /freebsd/
   $CFLAGS += " -std=gnu99 -Wall -Wsign-compare -Wno-declaration-after-statement #{additional_c_flags}"
