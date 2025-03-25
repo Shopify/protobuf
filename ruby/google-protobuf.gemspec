@@ -26,7 +26,6 @@ Gem::Specification.new do |s|
       File.basename(file) =~ /^(BUILD\.bazel)$/
     end
     s.extensions = %w[
-      ext/google/protobuf_c/extconf.rb
       ext/google/protobuf_c/Rakefile
     ]
   end

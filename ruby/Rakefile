@@ -193,6 +193,7 @@ end
 
 task :build => [:clean, :genproto, :copy_third_party, :compile, :"ffi-protobuf:default"]
 Rake::Task[:gem].enhance [:copy_third_party, :genproto]
+Rake::Task[:compile].enhance [:copy_third_party, :genproto]
 task :default => [:build]
 
 # vim:sw=2:et
