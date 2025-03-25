@@ -172,7 +172,7 @@ genrule(
         set -eux
         mkdir tmp
         for src in $(SRCS); do
-            cp --parents -L "$$src" tmp
+            mkdir -p "tmp/$$(dirname $$src)" && cp -L "$$src" "tmp/$$src"
         done
         mkdir -p "tmp/ruby/ext/google/protobuf_c/third_party/utf8_range"
         for utf in $(execpaths //third_party/utf8_range:utf8_range_srcs) $(execpath //third_party/utf8_range:LICENSE); do
@@ -204,13 +204,14 @@ genrule(
         "//ruby/lib/google:dist_files",
         ":well_known_ruby_protos",
         "google-protobuf.gemspec",
+        "Rakefile",
     ],
     outs = ["google-protobuf-" + PROTOBUF_RUBY_VERSION + ".gem"],
     cmd = """
         set -eux
         mkdir tmp
         for src in $(SRCS); do
-            cp --parents -L "$$src" "tmp"
+            mkdir -p "tmp/$$(dirname $$src)" && cp -L "$$src" "tmp/$$src"
         done
         mkdir -p "tmp/ruby/ext/google/protobuf_c/third_party/utf8_range"
         for utf in $(execpaths //third_party/utf8_range:utf8_range_srcs) $(execpath //third_party/utf8_range:LICENSE); do
