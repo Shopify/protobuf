@@ -76,6 +76,7 @@ unless ENV['IN_DOCKER'] == 'true' or ENV['BAZEL'] == 'true'
 end
 
 task :copy_third_party do
+  puts "!!!!!!!!! COPY THIRD PARTY"
   unless File.exist? 'ext/google/protobuf_c/third_party/utf8_range'
     FileUtils.mkdir_p 'ext/google/protobuf_c/third_party/utf8_range'
     # We need utf8_range in-tree.
