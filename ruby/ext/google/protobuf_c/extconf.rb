@@ -6,19 +6,19 @@ ext_name = "google/protobuf_c"
 
 dir_config(ext_name)
 
-# Dir.chdir(File.expand_path("../../../..", __FILE__)) do
-#   unless File.exist? 'ext/google/protobuf_c/third_party/utf8_range'
-#     FileUtils.mkdir_p 'ext/google/protobuf_c/third_party/utf8_range'
-#     # We need utf8_range in-tree.
-#     utf8_root = '../third_party/utf8_range'
-#     %w[
-#       utf8_range.h utf8_range.c utf8_range_sse.inc utf8_range_neon.inc LICENSE
-#     ].each do |file|
-#       FileUtils.cp File.join(utf8_root, file),
-#                    "ext/google/protobuf_c/third_party/utf8_range"
-#     end
-#   end
-# end
+Dir.chdir(File.expand_path("../../../..", __FILE__)) do
+  unless File.exist? 'ext/google/protobuf_c/third_party/utf8_range'
+    FileUtils.mkdir_p 'ext/google/protobuf_c/third_party/utf8_range'
+    # We need utf8_range in-tree.
+    utf8_root = '../third_party/utf8_range'
+    %w[
+      utf8_range.h utf8_range.c utf8_range_sse.inc utf8_range_neon.inc LICENSE
+    ].each do |file|
+      FileUtils.cp File.join(utf8_root, file),
+                   "ext/google/protobuf_c/third_party/utf8_range"
+    end
+  end
+end
 
 if ENV["CC"]
   RbConfig::CONFIG["CC"] = RbConfig::MAKEFILE_CONFIG["CC"] = ENV["CC"]
