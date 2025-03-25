@@ -4,6 +4,8 @@ require "rake/extensiontask" unless RUBY_PLATFORM == "java"
 require "rake/testtask"
 import 'lib/google/tasks/ffi.rake'
 
+raise "whoops"
+
 spec = Gem::Specification.load("google-protobuf.gemspec")
 
 well_known_protos = %w[
@@ -194,7 +196,6 @@ end
 
 task :build => [:clean, :genproto, :copy_third_party, :compile, :"ffi-protobuf:default"]
 Rake::Task[:gem].enhance [:copy_third_party, :genproto]
-#Rake::Task[:compile].enhance [:copy_third_party, :genproto]
 task :default => [:build]
 
 # vim:sw=2:et
