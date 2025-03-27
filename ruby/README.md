@@ -86,7 +86,7 @@ Then install the required Ruby gems:
 Then build the Gem:
 
     $ rake
-    $ rake clobber_package gem
+    $ rake clobber clobber_package gem
     $ gem install `ls pkg/google-protobuf-*.gem`
 
 To run the specs:

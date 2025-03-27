@@ -2,47 +2,10 @@ require "rubygems"
 require "rubygems/package_task"
 require "rake/extensiontask" unless RUBY_PLATFORM == "java"
 require "rake/testtask"
+
 import 'lib/google/tasks/ffi.rake'
 
 spec = Gem::Specification.load("google-protobuf.gemspec")
-
-well_known_protos = %w[
-  google/protobuf/any.proto
-  google/protobuf/api.proto
-  google/protobuf/descriptor.proto
-  google/protobuf/duration.proto
-  google/protobuf/empty.proto
-  google/protobuf/field_mask.proto
-  google/protobuf/source_context.proto
-  google/protobuf/struct.proto
-  google/protobuf/timestamp.proto
-  google/protobuf/type.proto
-  google/protobuf/wrappers.proto
-]
-
-test_protos = %w[
-  tests/basic_test.proto
-  tests/basic_test_features.proto
-  tests/basic_test_proto2.proto
-  tests/generated_code.proto
-  tests/generated_code_proto2.proto
-  tests/generated_code_editions.proto
-  tests/multi_level_nesting_test.proto
-  tests/repeated_field_test.proto
-  tests/service_test.proto
-  tests/stress.proto
-  tests/test_import.proto
-  tests/test_import_proto2.proto
-  tests/test_ruby_package.proto
-  tests/test_ruby_package_proto2.proto
-  tests/utf8.proto
-]
-
-# These are omitted for now because we don't support proto2.
-proto2_protos = %w[
-  google/protobuf/descriptor.proto
-  google/protobuf/compiler/plugin.proto
-]
 
 if !ENV['PROTOC'].nil?
   protoc_command = ENV['PROTOC']
@@ -52,41 +15,66 @@ else
   protoc_command = 'protoc'
 end
 
-genproto_output = []
+if !ENV['BAZEL'].nil?
+  bazel_command = ENV['BAZEL']
+elsif system('which bazelisk')
+  bazel_command = 'bazelisk'
+else
+  bazel_command = 'bazel'
+end
 
-# We won't have access to .. from within docker, but the proto files
-# will be there, thanks to the :genproto rule dependency for gem:native.
-unless ENV['IN_DOCKER'] == 'true' or ENV['BAZEL'] == 'true'
-  well_known_protos.each do |proto_file|
-    input_file = "../src/" + proto_file
-    output_file = "lib/" + proto_file.sub(/\.proto$/, "_pb.rb")
-    genproto_output << output_file
-    file output_file => input_file do |file_task|
-      sh "#{protoc_command} -I../src --ruby_out=lib #{input_file}"
+# The broader bazel build will have already generated the protos.
+in_bazel_build = ENV['IN_DOCKER'] == 'true' || ENV['BAZEL'] == 'true'
+
+unless in_bazel_build
+  well_known_protos_sentinel = "tmp/.well_known_protos_built"
+
+  directory "tmp"
+
+  task :compile_well_known_protos => Rake::FileList["../src/google/**/*.proto"] + ["tmp"] do
+    Dir.chdir('..') do
+      sh "#{bazel_command} build //ruby:well_known_ruby_protos"
+    end
+
+    # Create a timestamp file to track when we last ran this task
+    touch well_known_protos_sentinel
+  end
+
+  # Create a sentinel file to track the build
+  file well_known_protos_sentinel => :build_well_known_protos
+
+  task :copy_compiled_well_known_protos => [:compile_well_known_protos] do
+    Rake::FileList["../bazel-bin/ruby/google/protobuf/**/*_pb.rb"].each do |f|
+      FileUtils.cp(f, "lib/google/protobuf")
+      # The output from the bazel build lacks write permissions.  The published
+      # gem should have write permissions on these files.
+      FileUtils.chmod("u+w", "lib/google/protobuf/#{File.basename(f)}")
     end
   end
 
-  test_protos.each do |proto_file|
-    output_file = proto_file.sub(/\.proto$/, "_pb.rb")
-    genproto_output << output_file
-    file output_file => proto_file do |file_task|
-      sh "#{protoc_command} -I../src -I./tests --ruby_out=tests  #{proto_file}"
-    end
+  task :genproto => [:copy_compiled_well_known_protos, :compile_test_protos]
+else
+  task :genproto do
+    puts "Skipping genproto task in Bazel build"
   end
 end
 
-task :copy_third_party do
-  unless File.exist? 'ext/google/protobuf_c/third_party/utf8_range'
-    FileUtils.mkdir_p 'ext/google/protobuf_c/third_party/utf8_range'
-    # We need utf8_range in-tree.
-    utf8_root = '../third_party/utf8_range'
-    %w[
-      utf8_range.h utf8_range.c utf8_range_sse.inc utf8_range_neon.inc LICENSE
-    ].each do |file|
-      FileUtils.cp File.join(utf8_root, file),
-                   "ext/google/protobuf_c/third_party/utf8_range"
-    end
+
+utf8_range_dest_dir = "ext/google/protobuf_c/third_party/utf8_range"
+utf8_range_src_dir = "../third_party/utf8_range"
+
+%w[
+  utf8_range.h utf8_range.c utf8_range_sse.inc utf8_range_neon.inc LICENSE
+].each do |utf8_basename|
+  utf8_range_dest_file = File.join(utf8_range_dest_dir, utf8_basename)
+  utf8_range_src_file = File.join(utf8_range_src_dir, utf8_basename)
+
+  file utf8_range_dest_file => utf8_range_src_file do
+    FileUtils.mkdir_p utf8_range_dest_dir
+    FileUtils.cp utf8_range_src_file, utf8_range_dest_dir
   end
+
+  task :copy_third_party => utf8_range_dest_file
 end
 
 if RUBY_PLATFORM == "java"
@@ -127,6 +115,11 @@ else
     end
   end
 
+  namespace :compile do
+    # The third party libraries need to be copied before we compile the C extension.
+    task :protobuf_c => [:copy_third_party]
+  end
+
   task 'gem:java' do
     sh "rm Gemfile.lock"
     require 'rake_compiler_dock'
@@ -154,34 +147,54 @@ else
 
   if RUBY_PLATFORM =~ /darwin/
     task 'gem:native' do
-      system "rake genproto"
+      system "rake copy_compiled_well_known_protos"
       system "rake cross native gem RUBY_CC_VERSION=3.1.0"
     end
   else
-    task 'gem:native' => [:genproto, 'gem:windows', 'gem:java']
+    task 'gem:native' => [:copy_compiled_well_known_protos, 'gem:windows', 'gem:java']
   end
 end
 
-task :genproto => genproto_output
+# Setup rake clean, typically used for intermediate files
+CLEAN.include("pkg/", "tmp/")
 
-task :clean do
-  sh "rm -f #{genproto_output.join(' ')}"
-  sh "rm -f google-protobuf-*gem"
-  sh "rm -f Gemfile.lock"
-  sh "rm -rf pkg"
-  sh "rm -rf tmp"
-  # Handles third_party and any platform specific directories built by FFI
-  Pathname('ext/google/protobuf_c').children.select(&:directory?).each do |dir|
-    sh "rm -rf #{dir}"
-  end
-end
+# Setup rake cobber, which removes all generated products/artifacts adn also
+# includes everything in CLEAN
+# clobber all subdirectories (like third_party) of ext/google/protobuf_c but
+# not the files in ext/google/protobuf_c.
+CLOBBER.include("lib/google/protobuf/*_pb.rb", "tests/*_pb.rb", "ext/google/protobuf_c/*/")
 
 Gem::PackageTask.new(spec) do |pkg|
+  pkg.package_dir = "pkg"
+
+  # When packaging the gem, we want to replace the "Rakefile" extension with
+  # "ext/google/protobuf_c/extconf.rb".
+  pkg.gem_spec.extensions.map! do |ext|
+    ext == "Rakefile" ? "ext/google/protobuf_c/extconf.rb" : ext
+  end
 end
 
-# Skip build/genproto in Bazel builds, where we expect this to
-# be done already.
-Rake::TestTask.new(:test => ENV['BAZEL'] == 'true' ? [] : [:build, :genproto]) do |t|
+# The gemspec `files` array references autogenerated files.  This task simply
+# refreshes this value to ensure autogenerated files are included in the gem.
+task :refresh_gemspec_files do
+  Gem::Specification.send(:clear_load_cache) # TODO :-(
+  spec.files = Gem::Specification.load("google-protobuf.gemspec").files.reject do |f|
+    f == "Rakefile"
+  end
+end
+
+test_protos_src = Rake::FileList["tests/*.proto"]
+test_protos_dst = test_protos_src.pathmap("%X_pb.rb")
+
+test_protos_src.zip(test_protos_dst).each do |test_proto, test_pb_ruby|
+  file test_pb_ruby  => test_proto do |t|
+    sh "#{protoc_command} -I../src -I./tests --ruby_out=tests  #{t.source}"
+  end
+end
+
+task :compile_test_protos => test_protos_dst
+
+Rake::TestTask.new(:test => ENV['BAZEL'] == 'true' ? [:compile_test_protos] : [:build, :genproto]) do |t|
   t.test_files = FileList["tests/*.rb"].exclude("tests/gc_test.rb", "tests/common_tests.rb")
 end
 
@@ -192,7 +205,7 @@ Rake::TestTask.new(:gc_test => ENV['BAZEL'] == 'true' ? [] : :build) do |t|
 end
 
 task :build => [:clean, :genproto, :copy_third_party, :compile, :"ffi-protobuf:default"]
-Rake::Task[:gem].enhance [:copy_third_party, :genproto]
+Rake::Task[:gem].enhance [:copy_third_party, :genproto, :refresh_gemspec_files]
 task :default => [:build]
 
 # vim:sw=2:et
