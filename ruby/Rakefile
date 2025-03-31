@@ -199,11 +199,13 @@ task :refresh_gemspec_files do
 
   destination_base = "pkg/#{package_task.name}"
 
-  require 'debug'; debugger
-
   missing_file_tasks.each do |f|
-    FileUtils.mkdir_p File.dirname(File.join(destination_base, f))
-    safe_ln f, File.join(destination_base, f)
+    file f do
+      FileUtils.mkdir_p File.dirname(File.join(destination_base, f))
+      safe_ln f, File.join(destination_base, f)
+    end
+
+    Rake::Task[destination_base].enhance([f])
   end
 end
 
