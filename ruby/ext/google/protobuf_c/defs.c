@@ -219,6 +219,8 @@ static void DescriptorPool_register(VALUE module) {
 // Descriptor.
 // -----------------------------------------------------------------------------
 
+
+
 typedef struct {
   const upb_MessageDef* msgdef;
   // IMPORTANT: WB_PROTECTED objects must only use the RB_OBJ_WRITE()
@@ -236,9 +238,18 @@ static void Descriptor_mark(void* _self) {
   rb_gc_mark(self->descriptor_pool);
 }
 
+static void Descriptor_free(void* _self) {
+  Descriptor* self = _self;
+  if (self->field_cache) {
+    st_free_table(self->field_cache);
+    self->field_cache = NULL;
+  }
+  xfree(self);
+}
+
 static const rb_data_type_t Descriptor_type = {
     "Google::Protobuf::Descriptor",
-    {Descriptor_mark, RUBY_DEFAULT_FREE, NULL},
+    {Descriptor_mark, Descriptor_free, NULL},
     .flags = RUBY_TYPED_FREE_IMMEDIATELY | RUBY_TYPED_WB_PROTECTED,
 };
 
@@ -305,7 +316,7 @@ static VALUE Descriptor_alloc(VALUE klass) {
   self->msgdef = NULL;
   self->klass = Qnil;
   self->descriptor_pool = Qnil;
-  self->field_cache = st_init_numtable(); // TODO I think this is a memory leak
+  self->field_cache = st_init_numtable();
   return ret;
 }
 
