@@ -1,6 +1,7 @@
 GEM
   remote: https://rubygems.org/
   specs:
+    benchmark-ips (2.14.0)
     bigdecimal (3.1.9)
     bigdecimal (3.1.9-java)
     ffi (1.17.1)
@@ -32,6 +33,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
+  benchmark-ips (= 2.14.0)
   bigdecimal
   ffi (~> 1)
   ffi-compiler (~> 1)
