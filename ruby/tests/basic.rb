@@ -12,9 +12,6 @@ require 'json'
 require 'test/unit'
 
 module BasicTest
-  TestMessage = BasicTest::TestMessage
-  Outer = BasicTest::Outer
-
   class MessageContainerTest < Test::Unit::TestCase
     # Required by CommonTests module to resolve proto3 proto classes used in tests.
     def proto_module
