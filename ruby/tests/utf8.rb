@@ -98,7 +98,7 @@ end
 # but contain invalid UTF-8.
 #
 # This case will raise Encoding::UndefinedConversionError.
-class MarkedNonUtf8Test < Test::Unit::TestCase
+class MarkedNonUtf8InvalidUtf8Test < Test::Unit::TestCase
   def assert_bad_utf8
     assert_raises(Encoding::UndefinedConversionError) { yield }
   end
@@ -116,7 +116,7 @@ end
 # but are invalid even in their source encoding.
 #
 # This case will raise Encoding::InvalidByteSequenceError
-class MarkedNonUtf8Test < Test::Unit::TestCase
+class MarkedNonUtf8InvalidSourceTest < Test::Unit::TestCase
   def assert_bad_utf8(&block)
     assert_raises(Encoding::InvalidByteSequenceError, &block)
   end
