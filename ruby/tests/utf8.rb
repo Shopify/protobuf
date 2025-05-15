@@ -5,30 +5,6 @@ require 'google/protobuf'
 require 'utf8_pb'
 require 'test/unit'
 
-module CaptureWarnings
-  @@warnings = nil
-
-  module_function
-
-  def warn(message, category: nil, **kwargs)
-    if @@warnings
-      @@warnings << message
-    else
-      super
-    end
-  end
-
-  def capture
-    @@warnings = []
-    yield
-    @@warnings
-  ensure
-    @@warnings = nil
-  end
-end
-
-Warning.extend CaptureWarnings
-
 module Utf8Test
   def test_scalar
     msg = Utf8TestProtos::TestUtf8.new

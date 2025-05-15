@@ -8,30 +8,6 @@ require 'generated_code_pb'
 require 'google/protobuf/well_known_types'
 require 'test/unit'
 
-module CaptureWarnings
-  @@warnings = nil
-
-  module_function
-
-  def warn(message, category: nil, **kwargs)
-    if @@warnings
-      @@warnings << message
-    else
-      super
-    end
-  end
-
-  def capture
-    @@warnings = []
-    yield
-    @@warnings
-  ensure
-    @@warnings = nil
-  end
-end
-
-Warning.extend CaptureWarnings
-
 def hex2bin(s)
   s.scan(/../).map { |x| x.hex.chr }.join
 end
