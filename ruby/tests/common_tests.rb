@@ -1654,16 +1654,9 @@ module CommonTests
     assert_raises(Google::Protobuf::TypeError) { m.timestamp = '4' }
     assert_raises(Google::Protobuf::TypeError) { m.timestamp = proto_module::TimeMessage.new }
 
-    def test_time(year, month, day)
-      str = ("\"%04d-%02d-%02dT00:00:00.000+00:00\"" % [year, month, day])
-      t = Google::Protobuf::Timestamp.decode_json(str)
-      time = Time.new(year, month, day, 0, 0, 0, "+00:00")
-      assert_equal t.seconds, time.to_i
-    end
-
     (1970..2010).each do |year|
-      test_time(year, 2, 28)
-      test_time(year, 3, 01)
+      assert_time_equal(year, 2, 28)
+      assert_time_equal(year, 3, 01)
     end
   end
 
@@ -1937,5 +1930,14 @@ module CommonTests
     assert_respond_to msg, :double_as_value
     assert_equal 42, msg.double_as_value
     assert_equal Google::Protobuf::DoubleValue.new(value: 42), msg.double
+  end
+
+  private
+
+  def assert_time_equal(year, month, day)
+    str = ("\"%04d-%02d-%02dT00:00:00.000+00:00\"" % [year, month, day])
+    t = Google::Protobuf::Timestamp.decode_json(str)
+    time = Time.new(year, month, day, 0, 0, 0, "+00:00")
+    assert_equal t.seconds, time.to_i
   end
 end
