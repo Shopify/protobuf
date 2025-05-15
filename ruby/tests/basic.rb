@@ -1,4 +1,5 @@
 #!/usr/bin/ruby
+# frozen_string_literal: false
 
 # basic_test_pb.rb is in the same directory as this test.
 $LOAD_PATH.unshift(File.expand_path(File.dirname(__FILE__)))

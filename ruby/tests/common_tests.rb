@@ -1,3 +1,4 @@
+# frozen_string_literal: false
 require 'google/protobuf/wrappers_pb.rb'
 
 # Defines tests which are common between proto2 and proto3 syntax.

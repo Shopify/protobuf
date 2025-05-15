@@ -1,4 +1,5 @@
 #!/usr/bin/ruby
+# frozen_string_literal: false
 
 require 'google/protobuf'
 require 'utf8_pb'
