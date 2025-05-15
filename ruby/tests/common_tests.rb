@@ -28,9 +28,9 @@ module CommonTests
   def test_setters
     m = proto_module::TestMessage.new
     m.optional_int32 = -42
-    assert_equal -42, m.optional_int32
+    assert_equal(-42, m.optional_int32)
     m.optional_int64 = -0x1_0000_0000
-    assert_equal -0x1_0000_0000, m.optional_int64
+    assert_equal(-0x1_0000_0000, m.optional_int64)
     m.optional_uint32 = 0x9000_0000
     assert_equal 0x9000_0000, m.optional_uint32
     m.optional_uint64 = 0x9000_0000_0000_0000
@@ -62,7 +62,7 @@ module CommonTests
                                       :optional_msg => proto_module::TestMessage2.new,
                                       :optional_enum => :C,
                                       :repeated_string => ["hello", "there", "world"])
-    assert_equal -42, m.optional_int32
+    assert_equal(-42, m.optional_int32)
     assert_instance_of proto_module::TestMessage2, m.optional_msg
     assert_equal 3, m.repeated_string.length
     assert_equal :C, m.optional_enum
