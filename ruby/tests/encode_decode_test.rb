@@ -39,13 +39,13 @@ end
 class NonConformantNumericsTest < Test::Unit::TestCase
   def test_empty_json_numerics
     assert_raises Google::Protobuf::ParseError do
-      msg = ::BasicTestProto2::TestMessage.decode_json('{"optionalInt32":""}')
+      ::BasicTestProto2::TestMessage.decode_json('{"optionalInt32":""}')
     end
   end
 
   def test_trailing_non_numeric_characters
     assert_raises Google::Protobuf::ParseError do
-      msg = ::BasicTestProto2::TestMessage.decode_json('{"optionalDouble":"123abc"}')
+      ::BasicTestProto2::TestMessage.decode_json('{"optionalDouble":"123abc"}')
     end
   end
 end
