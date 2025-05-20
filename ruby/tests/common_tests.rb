@@ -1,3 +1,4 @@
+# frozen_string_literal: false
 require 'google/protobuf/wrappers_pb.rb'
 
 # Defines tests which are common between proto2 and proto3 syntax.
@@ -27,9 +28,9 @@ module CommonTests
   def test_setters
     m = proto_module::TestMessage.new
     m.optional_int32 = -42
-    assert_equal -42, m.optional_int32
+    assert_equal(-42, m.optional_int32)
     m.optional_int64 = -0x1_0000_0000
-    assert_equal -0x1_0000_0000, m.optional_int64
+    assert_equal(-0x1_0000_0000, m.optional_int64)
     m.optional_uint32 = 0x9000_0000
     assert_equal 0x9000_0000, m.optional_uint32
     m.optional_uint64 = 0x9000_0000_0000_0000
@@ -61,7 +62,7 @@ module CommonTests
                                       :optional_msg => proto_module::TestMessage2.new,
                                       :optional_enum => :C,
                                       :repeated_string => ["hello", "there", "world"])
-    assert_equal -42, m.optional_int32
+    assert_equal(-42, m.optional_int32)
     assert_instance_of proto_module::TestMessage2, m.optional_msg
     assert_equal 3, m.repeated_string.length
     assert_equal :C, m.optional_enum
@@ -1653,16 +1654,9 @@ module CommonTests
     assert_raises(Google::Protobuf::TypeError) { m.timestamp = '4' }
     assert_raises(Google::Protobuf::TypeError) { m.timestamp = proto_module::TimeMessage.new }
 
-    def test_time(year, month, day)
-      str = ("\"%04d-%02d-%02dT00:00:00.000+00:00\"" % [year, month, day])
-      t = Google::Protobuf::Timestamp.decode_json(str)
-      time = Time.new(year, month, day, 0, 0, 0, "+00:00")
-      assert_equal t.seconds, time.to_i
-    end
-
     (1970..2010).each do |year|
-      test_time(year, 2, 28)
-      test_time(year, 3, 01)
+      assert_time_equal(year, 2, 28)
+      assert_time_equal(year, 3, 01)
     end
   end
 
@@ -1936,5 +1930,14 @@ module CommonTests
     assert_respond_to msg, :double_as_value
     assert_equal 42, msg.double_as_value
     assert_equal Google::Protobuf::DoubleValue.new(value: 42), msg.double
+  end
+
+  private
+
+  def assert_time_equal(year, month, day)
+    str = ("\"%04d-%02d-%02dT00:00:00.000+00:00\"" % [year, month, day])
+    t = Google::Protobuf::Timestamp.decode_json(str)
+    time = Time.new(year, month, day, 0, 0, 0, "+00:00")
+    assert_equal t.seconds, time.to_i
   end
 end

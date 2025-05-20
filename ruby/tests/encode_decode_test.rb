@@ -8,30 +8,6 @@ require 'generated_code_pb'
 require 'google/protobuf/well_known_types'
 require 'test/unit'
 
-module CaptureWarnings
-  @@warnings = nil
-
-  module_function
-
-  def warn(message, category: nil, **kwargs)
-    if @@warnings
-      @@warnings << message
-    else
-      super
-    end
-  end
-
-  def capture
-    @@warnings = []
-    yield
-    @@warnings
-  ensure
-    @@warnings = nil
-  end
-end
-
-Warning.extend CaptureWarnings
-
 def hex2bin(s)
   s.scan(/../).map { |x| x.hex.chr }.join
 end
@@ -39,13 +15,13 @@ end
 class NonConformantNumericsTest < Test::Unit::TestCase
   def test_empty_json_numerics
     assert_raises Google::Protobuf::ParseError do
-      msg = ::BasicTestProto2::TestMessage.decode_json('{"optionalInt32":""}')
+      ::BasicTestProto2::TestMessage.decode_json('{"optionalInt32":""}')
     end
   end
 
   def test_trailing_non_numeric_characters
     assert_raises Google::Protobuf::ParseError do
-      msg = ::BasicTestProto2::TestMessage.decode_json('{"optionalDouble":"123abc"}')
+      ::BasicTestProto2::TestMessage.decode_json('{"optionalDouble":"123abc"}')
     end
   end
 end
