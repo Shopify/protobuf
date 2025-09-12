@@ -7,10 +7,24 @@
 
 #include "protobuf.h"
 
+#include <errno.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <strings.h>
+
 #include "defs.h"
 #include "map.h"
 #include "message.h"
 #include "repeated_field.h"
+
+#define BYTES_PER_KB (1024ULL)
+#define BYTES_PER_MB (BYTES_PER_KB * 1024)
+#define BYTES_PER_GB (BYTES_PER_MB * 1024)
+
+#ifndef SIZE_MAX
+#define SIZE_MAX ((size_t)-1)
+#endif
 
 VALUE cParseError;
 VALUE cTypeError;
@@ -207,6 +221,8 @@ upb_Arena *Arena_get(VALUE _arena) {
   return arena->arena;
 }
 
+static size_t arena_fusion_warning_threshold = 0;
+
 void Arena_fuse(VALUE _arena, upb_Arena *other) {
   Arena *arena;
   TypedData_Get_Struct(_arena, Arena, &Arena_type, arena);
@@ -214,6 +230,16 @@ void Arena_fuse(VALUE _arena, upb_Arena *other) {
     rb_raise(rb_eRuntimeError,
              "Unable to fuse arenas. This should never happen since Ruby does "
              "not use initial blocks");
+  }
+
+  if (arena_fusion_warning_threshold > 0) {
+    size_t fused_count;
+    size_t total_size = upb_Arena_SpaceAllocated(arena->arena, &fused_count);
+
+    if (total_size > arena_fusion_warning_threshold) {
+      rb_warning("Large arena growth detected: %zu bytes, %zu arenas.",
+                 total_size, fused_count);
+    }
   }
 }
 
@@ -321,11 +347,72 @@ VALUE Google_Protobuf_deep_copy(VALUE self, VALUE obj) {
 // Initialization/entry point.
 // -----------------------------------------------------------------------------
 
+static size_t parse_size_with_unit(const char* str) {
+  if (!str || !*str) return 0;
+
+  char* endptr;
+  errno = 0;
+  unsigned long long value = strtoull(str, &endptr, 10);
+
+  if (errno == ERANGE || value > SIZE_MAX) {
+    rb_warning("Arena fusion threshold value overflow: %s", str);
+    return BYTES_PER_GB;
+  }
+
+  if (errno != 0 || endptr == str) {
+    rb_warning("Invalid arena fusion threshold value: %s", str);
+    return BYTES_PER_GB;
+  }
+
+  while (*endptr == ' ') endptr++;
+
+  if (*endptr != '\0') {
+    if (strcasecmp(endptr, "KB") == 0) {
+      if (value > SIZE_MAX / BYTES_PER_KB) {
+        rb_warning("Arena fusion threshold overflow with KB unit: %s", str);
+        return BYTES_PER_GB;
+      }
+      value *= BYTES_PER_KB;
+    } else if (strcasecmp(endptr, "MB") == 0) {
+      if (value > SIZE_MAX / BYTES_PER_MB) {
+        rb_warning("Arena fusion threshold overflow with MB unit: %s", str);
+        return BYTES_PER_GB;
+      }
+      value *= BYTES_PER_MB;
+    } else if (strcasecmp(endptr, "GB") == 0) {
+      if (value > SIZE_MAX / BYTES_PER_GB) {
+        rb_warning("Arena fusion threshold overflow with GB unit: %s", str);
+        return BYTES_PER_GB;
+      }
+      value *= BYTES_PER_GB;
+    }
+  }
+
+  return (size_t)value;
+}
+
+static void initialize_arena_fusion_threshold(void) {
+  const char* threshold_env = getenv("PROTOBUF_ARENA_FUSION_WARNING_THRESHOLD");
+
+  if (threshold_env) {
+    arena_fusion_warning_threshold = parse_size_with_unit(threshold_env);
+  } else {
+    arena_fusion_warning_threshold = BYTES_PER_GB;
+  }
+
+  if (ruby_verbose && arena_fusion_warning_threshold > 0) {
+    rb_warning("Protobuf arena fusion warning threshold set to %zu bytes",
+               arena_fusion_warning_threshold);
+  }
+}
+
 // This must be named "Init_protobuf_c" because the Ruby module is named
 // "protobuf_c" -- the VM looks for this symbol in our .so.
 __attribute__((visibility("default"))) void Init_protobuf_c() {
   VALUE google = rb_define_module("Google");
   VALUE protobuf = rb_define_module_under(google, "Protobuf");
+
+  initialize_arena_fusion_threshold();
 
   ObjectCache_Init(protobuf);
   Arena_register(protobuf);
