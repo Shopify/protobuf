@@ -149,11 +149,20 @@ typedef struct {
   // IMPORTANT: WB_PROTECTED objects must only use the RB_OBJ_WRITE()
   // macro to update VALUE references, as to trigger write barriers.
   VALUE pinned_objs;
+#ifdef DISABLE_ARENA_FUSION
+  // Track referenced arenas to prevent premature GC when fusion is disabled
+  VALUE referenced_arenas;
+#endif
 } Arena;
 
 static void Arena_mark(void *data) {
   Arena *arena = data;
   rb_gc_mark(arena->pinned_objs);
+#ifdef DISABLE_ARENA_FUSION
+  if (arena->referenced_arenas != Qnil) {
+    rb_gc_mark(arena->referenced_arenas);
+  }
+#endif
 }
 
 static void Arena_free(void *data) {
@@ -198,7 +207,15 @@ static VALUE Arena_alloc(VALUE klass) {
   Arena *arena = ALLOC(Arena);
   arena->arena = upb_Arena_Init(NULL, 0, &ruby_upb_alloc);
   arena->pinned_objs = Qnil;
-  return TypedData_Wrap_Struct(klass, &Arena_type, arena);
+#ifdef DISABLE_ARENA_FUSION
+  arena->referenced_arenas = rb_ary_new();
+#endif
+  VALUE ret = TypedData_Wrap_Struct(klass, &Arena_type, arena);
+#ifdef DISABLE_ARENA_FUSION
+  // Register the arena in ObjectCache so we can find it later
+  ObjectCache_TryAdd(arena->arena, ret);
+#endif
+  return ret;
 }
 
 upb_Arena *Arena_get(VALUE _arena) {
@@ -210,11 +227,24 @@ upb_Arena *Arena_get(VALUE _arena) {
 void Arena_fuse(VALUE _arena, upb_Arena *other) {
   Arena *arena;
   TypedData_Get_Struct(_arena, Arena, &Arena_type, arena);
+
+#ifdef DISABLE_ARENA_FUSION
+  // Instead of fusing, track the reference to prevent premature GC
+  // Find the Ruby Arena object that wraps 'other'
+  VALUE other_arena_rb = ObjectCache_Get(other);
+  if (other_arena_rb != Qnil) {
+    // Add to our list of referenced arenas to keep it alive
+    rb_ary_push(arena->referenced_arenas, other_arena_rb);
+  }
+  // Note: We don't actually fuse the arenas at the upb level
+#else
+  // Original fusion behavior
   if (!upb_Arena_Fuse(arena->arena, other)) {
     rb_raise(rb_eRuntimeError,
              "Unable to fuse arenas. This should never happen since Ruby does "
              "not use initial blocks");
   }
+#endif
 }
 
 VALUE Arena_new() { return Arena_alloc(cArena); }
