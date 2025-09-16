@@ -354,6 +354,25 @@ static VALUE Message_field_accessor(VALUE _self, const upb_FieldDef* f,
   switch (accessor_type) {
     case METHOD_SETTER:
       Message_setfield(Message_GetMutable(_self, NULL), f, argv[1], arena);
+#ifdef DISABLE_ARENA_FUSION
+      // Track arena references when setting fields that contain other arenas
+      if (argv[1] != Qnil) {
+        VALUE self_arena = Message_GetArena(_self);
+        if (upb_FieldDef_IsSubMessage(f) && !upb_FieldDef_IsRepeated(f)) {
+          // For singular message fields, track the arena reference
+          VALUE val_arena = Message_GetArena(argv[1]);
+          Arena_add_reference(self_arena, val_arena);
+        } else if (upb_FieldDef_IsRepeated(f) && !upb_FieldDef_IsMap(f)) {
+          // For repeated fields, track the arena reference
+          VALUE val_arena = RepeatedField_GetArena(argv[1]);
+          Arena_add_reference(self_arena, val_arena);
+        } else if (upb_FieldDef_IsMap(f)) {
+          // For map fields, track the arena reference
+          VALUE val_arena = Map_GetArena(argv[1]);
+          Arena_add_reference(self_arena, val_arena);
+        }
+      }
+#endif
       return Qnil;
     case METHOD_CLEAR:
       upb_Message_ClearFieldByDef(Message_GetMutable(_self, NULL), f);
@@ -691,7 +710,12 @@ static VALUE Message_dup(VALUE _self) {
   Message* new_msg_self = ruby_to_Message(new_msg);
   const upb_MiniTable* m = upb_MessageDef_MiniTable(self->msgdef);
   upb_Message_ShallowCopy((upb_Message*)new_msg_self->msg, self->msg, m);
+#ifdef DISABLE_ARENA_FUSION
+  // Track arena reference to prevent premature GC
+  Arena_add_reference(self->arena, new_msg_self->arena);
+#else
   Arena_fuse(self->arena, Arena_get(new_msg_self->arena));
+#endif
   return new_msg;
 }
 
@@ -1415,7 +1439,12 @@ const upb_Message* Message_GetUpbMessage(VALUE value, const upb_MessageDef* m,
   }
 
   Message* self = ruby_to_Message(value);
+#ifdef DISABLE_ARENA_FUSION
+  // Track arena reference to prevent premature GC
+  Arena_add_reference(self->arena, ObjectCache_Get(arena));
+#else
   Arena_fuse(self->arena, arena);
+#endif
 
   return self->msg;
 }

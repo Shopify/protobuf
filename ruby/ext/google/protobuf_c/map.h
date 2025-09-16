@@ -45,4 +45,9 @@ void Map_register(VALUE module);
 // Recursively freeze map
 VALUE Map_freeze(VALUE _self);
 
+#ifdef DISABLE_ARENA_FUSION
+// Returns the arena object for this Map.
+VALUE Map_GetArena(VALUE _self);
+#endif
+
 #endif  // RUBY_PROTOBUF_MAP_H_

@@ -54,6 +54,14 @@ static Map* ruby_to_Map(VALUE _self) {
   return self;
 }
 
+#ifdef DISABLE_ARENA_FUSION
+// Returns the arena object for this Map
+VALUE Map_GetArena(VALUE _self) {
+  Map* self = ruby_to_Map(_self);
+  return self->arena;
+}
+#endif
+
 static VALUE Map_alloc(VALUE klass) {
   Map* self = ALLOC(Map);
   self->map = NULL;
@@ -169,7 +177,12 @@ const upb_Map* Map_GetUpbMap(VALUE val, const upb_FieldDef* field,
     rb_raise(cTypeError, "Map value type has wrong message/enum class");
   }
 
+#ifdef DISABLE_ARENA_FUSION
+  // Track arena reference to prevent premature GC
+  Arena_add_reference(self->arena, ObjectCache_Get(arena));
+#else
   Arena_fuse(self->arena, arena);
+#endif
   return self->map;
 }
 
@@ -217,7 +230,12 @@ static VALUE Map_merge_into_self(VALUE _self, VALUE hashmap) {
     upb_Arena* arena = Arena_get(self->arena);
     upb_Map* self_map = Map_GetMutable(_self);
 
+#ifdef DISABLE_ARENA_FUSION
+    // Track arena reference to prevent premature GC
+    Arena_add_reference(self->arena, other->arena);
+#else
     Arena_fuse(other->arena, arena);
+#endif
 
     if (self->key_type != other->key_type ||
         self->value_type_info.type != other->value_type_info.type ||
@@ -519,7 +537,12 @@ static VALUE Map_dup(VALUE _self) {
   upb_Arena* arena = Arena_get(new_self->arena);
   upb_Map* new_map = Map_GetMutable(new_map_rb);
 
+#ifdef DISABLE_ARENA_FUSION
+  // Track arena reference to prevent premature GC
+  Arena_add_reference(self->arena, ObjectCache_Get(arena));
+#else
   Arena_fuse(self->arena, arena);
+#endif
 
   upb_MessageValue key, val;
   while (upb_Map_Next(self->map, &key, &val, &iter)) {

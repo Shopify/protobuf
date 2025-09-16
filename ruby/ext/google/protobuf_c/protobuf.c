@@ -150,7 +150,7 @@ typedef struct {
   // macro to update VALUE references, as to trigger write barriers.
   VALUE pinned_objs;
 #ifdef DISABLE_ARENA_FUSION
-  // Track referenced arenas to prevent premature GC when fusion is disabled
+  // Track referenced arenas to prevent premature GC
   VALUE referenced_arenas;
 #endif
 } Arena;
@@ -211,10 +211,6 @@ static VALUE Arena_alloc(VALUE klass) {
   arena->referenced_arenas = rb_ary_new();
 #endif
   VALUE ret = TypedData_Wrap_Struct(klass, &Arena_type, arena);
-#ifdef DISABLE_ARENA_FUSION
-  // Register the arena in ObjectCache so we can find it later
-  ObjectCache_TryAdd(arena->arena, ret);
-#endif
   return ret;
 }
 
@@ -224,28 +220,28 @@ upb_Arena *Arena_get(VALUE _arena) {
   return arena->arena;
 }
 
-void Arena_fuse(VALUE _arena, upb_Arena *other) {
+#ifdef DISABLE_ARENA_FUSION
+// Add a reference to another arena to prevent premature GC
+void Arena_add_reference(VALUE _arena, VALUE other_arena) {
+  if (other_arena == Qnil || _arena == other_arena) return;
+
   Arena *arena;
   TypedData_Get_Struct(_arena, Arena, &Arena_type, arena);
 
-#ifdef DISABLE_ARENA_FUSION
-  // Instead of fusing, track the reference to prevent premature GC
-  // Find the Ruby Arena object that wraps 'other'
-  VALUE other_arena_rb = ObjectCache_Get(other);
-  if (other_arena_rb != Qnil) {
-    // Add to our list of referenced arenas to keep it alive
-    rb_ary_push(arena->referenced_arenas, other_arena_rb);
-  }
-  // Note: We don't actually fuse the arenas at the upb level
+  // Add to our list of referenced arenas to keep it alive
+  rb_ary_push(arena->referenced_arenas, other_arena);
+}
 #else
-  // Original fusion behavior
+void Arena_fuse(VALUE _arena, upb_Arena *other) {
+  Arena *arena;
+  TypedData_Get_Struct(_arena, Arena, &Arena_type, arena);
   if (!upb_Arena_Fuse(arena->arena, other)) {
     rb_raise(rb_eRuntimeError,
              "Unable to fuse arenas. This should never happen since Ruby does "
              "not use initial blocks");
   }
-#endif
 }
+#endif
 
 VALUE Arena_new() { return Arena_alloc(cArena); }
 
@@ -347,6 +343,22 @@ VALUE Google_Protobuf_deep_copy(VALUE self, VALUE obj) {
   }
 }
 
+/*
+ * call-seq:
+ *     Google::Protobuf.arena_mode => symbol
+ *
+ * Returns the arena memory management mode compiled into this extension.
+ * Returns :fusion if arena fusion is enabled (default), or :reference_tracking
+ * if arena fusion is disabled.
+ */
+static VALUE Google_Protobuf_arena_mode(VALUE self) {
+#ifdef DISABLE_ARENA_FUSION
+  return ID2SYM(rb_intern("reference_tracking"));
+#else
+  return ID2SYM(rb_intern("fusion"));
+#endif
+}
+
 // -----------------------------------------------------------------------------
 // Initialization/entry point.
 // -----------------------------------------------------------------------------
@@ -373,6 +385,8 @@ __attribute__((visibility("default"))) void Init_protobuf_c() {
                              Google_Protobuf_discard_unknown, 1);
   rb_define_singleton_method(protobuf, "deep_copy", Google_Protobuf_deep_copy,
                              1);
+  rb_define_singleton_method(protobuf, "arena_mode", Google_Protobuf_arena_mode,
+                             0);
 }
 
 // -----------------------------------------------------------------------------

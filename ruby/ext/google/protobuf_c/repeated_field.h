@@ -42,4 +42,9 @@ void RepeatedField_register(VALUE module);
 // Recursively freeze RepeatedField.
 VALUE RepeatedField_freeze(VALUE _self);
 
+#ifdef DISABLE_ARENA_FUSION
+// Returns the arena object for this RepeatedField.
+VALUE RepeatedField_GetArena(VALUE _self);
+#endif
+
 #endif  // RUBY_PROTOBUF_REPEATED_FIELD_H_

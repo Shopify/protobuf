@@ -49,6 +49,14 @@ static upb_Array* RepeatedField_GetMutable(VALUE _self) {
   return (upb_Array*)array;
 }
 
+#ifdef DISABLE_ARENA_FUSION
+// Returns the arena object for this RepeatedField
+VALUE RepeatedField_GetArena(VALUE _self) {
+  RepeatedField* self = ruby_to_RepeatedField(_self);
+  return self->arena;
+}
+#endif
+
 VALUE RepeatedField_alloc(VALUE klass) {
   RepeatedField* self = ALLOC(RepeatedField);
   self->arena = Qnil;
@@ -169,7 +177,12 @@ const upb_Array* RepeatedField_GetUpbArray(VALUE val, const upb_FieldDef* field,
     rb_raise(cTypeError, "Repeated field array has wrong message/enum class");
   }
 
+#ifdef DISABLE_ARENA_FUSION
+  // Track arena reference to prevent premature GC
+  Arena_add_reference(self->arena, ObjectCache_Get(arena));
+#else
   Arena_fuse(self->arena, arena);
+#endif
   return self->array;
 }
 
@@ -436,7 +449,12 @@ static VALUE RepeatedField_dup(VALUE _self) {
   int size = upb_Array_Size(self->array);
   int i;
 
+#ifdef DISABLE_ARENA_FUSION
+  // Track arena reference to prevent premature GC
+  Arena_add_reference(self->arena, ObjectCache_Get(arena));
+#else
   Arena_fuse(self->arena, arena);
+#endif
 
   for (i = 0; i < size; i++) {
     upb_MessageValue msgval = upb_Array_Get(self->array, i);
@@ -612,7 +630,12 @@ VALUE RepeatedField_plus(VALUE _self, VALUE list) {
     RepeatedField* dupped = ruby_to_RepeatedField(dupped_);
     upb_Array* dupped_array = RepeatedField_GetMutable(dupped_);
     upb_Arena* arena = Arena_get(dupped->arena);
+#ifdef DISABLE_ARENA_FUSION
+    // Track arena reference to prevent premature GC
+    Arena_add_reference(list_rptfield->arena, dupped->arena);
+#else
     Arena_fuse(list_rptfield->arena, arena);
+#endif
     int size = upb_Array_Size(list_rptfield->array);
     int i;
 

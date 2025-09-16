@@ -42,7 +42,12 @@ upb_Arena* Arena_get(VALUE arena);
 
 // Fuses this arena to another, throwing a Ruby exception if this is not
 // possible.
+#ifdef DISABLE_ARENA_FUSION
+// Add a reference to another arena to prevent premature GC
+void Arena_add_reference(VALUE arena, VALUE other_arena);
+#else
 void Arena_fuse(VALUE arena, upb_Arena* other);
+#endif
 
 // -----------------------------------------------------------------------------
 // ObjectCache
