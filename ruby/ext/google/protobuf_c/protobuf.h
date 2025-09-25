@@ -97,4 +97,17 @@ void Protobuf_CheckNotFrozen(VALUE val, bool upb_frozen);
 
 #define PBRUBY_MAX(x, y) (((x) > (y)) ? (x) : (y))
 
+// Returns an upb_StringView over the raw bytes of a Ruby String (no copy).
+// Safe to pass to upb "WithSize" APIs. This uses the string's byte length.
+static inline upb_StringView PB_RSTRING_VIEW(VALUE str) {
+  return upb_StringView_FromDataAndSize(RSTRING_PTR(str), (size_t)RSTRING_LEN(str));
+}
+
+// Returns an upb_StringView over a Ruby Symbol's UTF-8 bytes via rb_id2str.
+// This is useful when Ruby APIs accept symbols as names.
+static inline upb_StringView PB_SYM_VIEW(VALUE sym) {
+  VALUE s = rb_id2str(SYM2ID(sym));
+  return upb_StringView_FromDataAndSize(RSTRING_PTR(s), (size_t)RSTRING_LEN(s));
+}
+
 #endif  // __GOOGLE_PROTOBUF_RUBY_PROTOBUF_H__

@@ -164,34 +164,35 @@ VALUE DescriptorPool_add_serialized_file(VALUE _self,
  */
 static VALUE DescriptorPool_lookup(VALUE _self, VALUE name) {
   DescriptorPool* self = ruby_to_DescriptorPool(_self);
-  const char* name_str = get_str(name);
+  Check_Type(name, T_STRING);
+  upb_StringView view = PB_RSTRING_VIEW(name);
   const upb_MessageDef* msgdef;
   const upb_EnumDef* enumdef;
   const upb_FieldDef* fielddef;
   const upb_ServiceDef* servicedef;
   const upb_FileDef* filedef;
 
-  msgdef = upb_DefPool_FindMessageByName(self->symtab, name_str);
+  msgdef = upb_DefPool_FindMessageByNameWithSize(self->symtab, view.data, view.size);
   if (msgdef) {
     return get_msgdef_obj(_self, msgdef);
   }
 
-  fielddef = upb_DefPool_FindExtensionByName(self->symtab, name_str);
+  fielddef = upb_DefPool_FindExtensionByNameWithSize(self->symtab, view.data, view.size);
   if (fielddef) {
     return get_fielddef_obj(_self, fielddef);
   }
 
-  enumdef = upb_DefPool_FindEnumByName(self->symtab, name_str);
+  enumdef = upb_DefPool_FindEnumByName(self->symtab, view.data);
   if (enumdef) {
     return get_enumdef_obj(_self, enumdef);
   }
 
-  servicedef = upb_DefPool_FindServiceByName(self->symtab, name_str);
+  servicedef = upb_DefPool_FindServiceByName(self->symtab, view.data);
   if (servicedef) {
     return get_servicedef_obj(_self, servicedef);
   }
 
-  filedef = upb_DefPool_FindFileByName(self->symtab, name_str);
+  filedef = upb_DefPool_FindFileByNameWithSize(self->symtab, view.data, view.size);
   if (filedef) {
     return get_filedef_obj(_self, filedef);
   }
@@ -404,8 +405,9 @@ static VALUE Descriptor_each(VALUE _self) {
  */
 static VALUE Descriptor_lookup(VALUE _self, VALUE name) {
   Descriptor* self = ruby_to_Descriptor(_self);
-  const char* s = get_str(name);
-  const upb_FieldDef* field = upb_MessageDef_FindFieldByName(self->msgdef, s);
+  Check_Type(name, T_STRING);
+  upb_StringView view = PB_RSTRING_VIEW(name);
+  const upb_FieldDef* field = upb_MessageDef_FindFieldByNameWithSize(self->msgdef, view.data, view.size);
   if (field == NULL) {
     return Qnil;
   }
@@ -444,8 +446,9 @@ static VALUE Descriptor_each_oneof(VALUE _self) {
  */
 static VALUE Descriptor_lookup_oneof(VALUE _self, VALUE name) {
   Descriptor* self = ruby_to_Descriptor(_self);
-  const char* s = get_str(name);
-  const upb_OneofDef* oneof = upb_MessageDef_FindOneofByName(self->msgdef, s);
+  Check_Type(name, T_STRING);
+  upb_StringView view = PB_RSTRING_VIEW(name);
+  const upb_OneofDef* oneof = upb_MessageDef_FindOneofByNameWithSize(self->msgdef, view.data, view.size);
   if (oneof == NULL) {
     return Qnil;
   }

@@ -616,12 +616,12 @@ typedef struct {
 
 static int Message_initialize_kwarg(VALUE key, VALUE val, VALUE _self) {
   MsgInit* msg_init = (MsgInit*)_self;
-  const char* name;
+  upb_StringView name_view;
 
   if (TYPE(key) == T_STRING) {
-    name = RSTRING_PTR(key);
+    name_view = PB_RSTRING_VIEW(key);
   } else if (TYPE(key) == T_SYMBOL) {
-    name = RSTRING_PTR(rb_id2str(SYM2ID(key)));
+    name_view = PB_SYM_VIEW(key);
   } else {
     rb_raise(rb_eArgError,
              "Expected string or symbols as hash keys when initializing proto "
@@ -629,11 +629,11 @@ static int Message_initialize_kwarg(VALUE key, VALUE val, VALUE _self) {
   }
 
   const upb_FieldDef* f =
-      upb_MessageDef_FindFieldByName(msg_init->msgdef, name);
+      upb_MessageDef_FindFieldByNameWithSize(msg_init->msgdef, name_view.data, name_view.size);
 
   if (f == NULL) {
     rb_raise(rb_eArgError,
-             "Unknown field name '%s' in initialization map entry.", name);
+             "Unknown field name '%.*s' in initialization map entry.", (int)name_view.size, name_view.data);
   }
 
   Message_InitFieldFromValue(msg_init->msg, f, val, msg_init->arena);
@@ -898,7 +898,9 @@ static VALUE Message_index(VALUE _self, VALUE field_name) {
   const upb_FieldDef* field;
 
   Check_Type(field_name, T_STRING);
-  field = upb_MessageDef_FindFieldByName(self->msgdef, RSTRING_PTR(field_name));
+
+  upb_StringView name = PB_RSTRING_VIEW(field_name);
+  field = upb_MessageDef_FindFieldByNameWithSize(self->msgdef, name.data, name.size);
 
   if (field == NULL) {
     return Qnil;
@@ -924,10 +926,11 @@ static VALUE Message_index_set(VALUE _self, VALUE field_name, VALUE value) {
   upb_Arena* arena = Arena_get(self->arena);
 
   Check_Type(field_name, T_STRING);
-  f = upb_MessageDef_FindFieldByName(self->msgdef, RSTRING_PTR(field_name));
+  upb_StringView name = PB_RSTRING_VIEW(field_name);
+  f = upb_MessageDef_FindFieldByNameWithSize(self->msgdef, name.data, name.size);
 
   if (f == NULL) {
-    rb_raise(rb_eArgError, "Unknown field: %s", RSTRING_PTR(field_name));
+    rb_raise(rb_eArgError, "Unknown field: %.*s", (int)name.size, name.data);
   }
 
   val = Convert_RubyToUpb(value, upb_FieldDef_Name(f), TypeInfo_get(f), arena);
