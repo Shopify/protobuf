@@ -5,6 +5,9 @@
 // license that can be found in the LICENSE file or at
 // https://developers.google.com/open-source/licenses/bsd
 
+#include <ruby.h>
+#include <ruby/st.h>
+
 #include "message.h"
 
 #include "convert.h"
@@ -50,7 +53,7 @@ static rb_data_type_t Message_type = {
     "Google::Protobuf::Message",
     {Message_mark, RUBY_DEFAULT_FREE, Message_memsize},
     .flags = RUBY_TYPED_FREE_IMMEDIATELY | RUBY_TYPED_WB_PROTECTED,
-};
+};// RTYPED_DATA(whatever)
 
 static Message* ruby_to_Message(VALUE msg_rb) {
   Message* msg;
@@ -907,6 +910,25 @@ static VALUE Message_index(VALUE _self, VALUE field_name) {
   return Message_getfield(_self, field);
 }
 
+static VALUE Message_index_alt(VALUE _self, VALUE field_name) {
+  Message* self = ruby_to_Message(_self);
+  const upb_FieldDef* field = NULL;
+
+  // Fast path for Symbol: use upb lookup directly without interning/converting
+  if (SYMBOL_P(field_name)) {
+    const char* name = rb_id2name(SYM2ID(field_name));
+    field = upb_MessageDef_FindFieldByName(self->msgdef, name);
+  } else if (RB_TYPE_P(field_name, T_STRING)) {
+    // String: fall back to standard path
+    field = upb_MessageDef_FindFieldByName(self->msgdef, RSTRING_PTR(field_name));
+  } else {
+    rb_raise(rb_eTypeError, "Expected String or Symbol for field name");
+  }
+
+  if (field == NULL) return Qnil;
+  return Message_getfield(_self, field);
+}
+
 /*
  * ruby-doc: AbstractMessage#[]=
  *
@@ -1213,6 +1235,70 @@ static VALUE Message_descriptor(VALUE klass) {
   return rb_ivar_get(klass, descriptor_instancevar_interned);
 }
 
+// Fast accessor entry used for generated field getter methods
+// accessor_type corresponds to METHOD_* enum above.
+typedef struct {
+  const upb_FieldDef* field;
+  int accessor_type;
+} FastAccessorEntry;
+
+// Forward declaration for fallback.
+static VALUE Message_method_missing(int argc, VALUE* argv, VALUE _self);
+
+// Generic dispatcher for per-field generated methods (arity 0).
+static VALUE Message_field_dispatch0(VALUE _self) {
+  // Resolve current method ID and find its cached accessor entry.
+  ID mid = rb_frame_this_func();
+  VALUE klass = rb_class_of(_self);
+  VALUE descriptor_rb = rb_ivar_get(klass, descriptor_instancevar_interned);
+
+  if (descriptor_rb == Qnil) {
+    // Fallback to method_missing if something went wrong.
+    VALUE argv[1] = {ID2SYM(mid)};
+
+    return Message_method_missing(1, argv, _self);
+  }
+
+  st_table* field_cache = field_cache_for_RubyDescriptor(descriptor_rb);
+  st_data_t val;
+  if (!st_lookup(field_cache, (st_data_t)mid, &val)) {
+    // Not a generated accessor; delegate to method_missing.
+    VALUE argv[1] = {ID2SYM(mid)};
+
+    return Message_method_missing(1, argv, _self);
+  }
+
+  FastAccessorEntry* entry = (FastAccessorEntry*)val;
+
+  return Message_field_accessor(_self, entry->field, entry->accessor_type, 0, NULL);
+}
+
+// Generic dispatcher for per-field generated methods (arity 1, for setters and similar).
+static VALUE Message_field_dispatch1(VALUE _self, VALUE arg) {
+  ID mid = rb_frame_this_func();
+  VALUE klass = rb_class_of(_self);
+  VALUE descriptor_rb = rb_ivar_get(klass, descriptor_instancevar_interned);
+
+  if (descriptor_rb == Qnil) {
+    // Fallback to method_missing(method, arg)
+    VALUE argv[2] = {ID2SYM(mid), arg};
+    return Message_method_missing(2, argv, _self);
+  }
+
+  st_table* field_cache = field_cache_for_RubyDescriptor(descriptor_rb);
+  st_data_t val;
+  if (!st_lookup(field_cache, (st_data_t)mid, &val)) {
+    // Not a generated accessor; delegate to method_missing(method, arg).
+    VALUE argv[2] = {ID2SYM(mid), arg};
+    return Message_method_missing(2, argv, _self);
+  }
+
+  FastAccessorEntry* entry = (FastAccessorEntry*)val;
+
+  VALUE argv2[2] = {Qnil, arg};
+  return Message_field_accessor(_self, entry->field, entry->accessor_type, 2, argv2);
+}
+
 VALUE build_class_from_descriptor(VALUE descriptor) {
   const char* name;
   VALUE klass;
@@ -1227,6 +1313,87 @@ VALUE build_class_from_descriptor(VALUE descriptor) {
       // their own toplevel constant class name.
       rb_intern("Message"), cAbstractMessage);
   rb_ivar_set(klass, descriptor_instancevar_interned, descriptor);
+
+  // Generate fast getter methods for each field to bypass method_missing.
+  const upb_MessageDef* m = Descriptor_GetMsgDef(descriptor);
+  int n = upb_MessageDef_FieldCount(m);
+  st_table* cache = field_cache_for_RubyDescriptor(descriptor);
+
+  for (int i = 0; i < n; i++) {
+    const upb_FieldDef* f = upb_MessageDef_Field(m, i);
+    const char* fname = upb_FieldDef_Name(f);
+    ID getter_id = rb_intern(fname);
+
+    // Do not define a method if it would override an existing Ruby method
+    // (eg. Object#dup, Object#class). Such fields must be accessed via [] to
+    // preserve Ruby semantics and existing tests.
+    if (rb_method_boundp(klass, getter_id, 0)) {
+      // Skip generating a fast getter for this conflicting name.
+      continue;
+    }
+
+    // Register method -> accessor entry in the cache.
+    FastAccessorEntry* e = ALLOC(FastAccessorEntry);
+    e->field = f;
+    e->accessor_type = METHOD_GETTER;
+    st_insert(cache, (st_data_t)getter_id, (st_data_t)e);
+
+    // Define the Ruby method that dispatches via the cache.
+    rb_define_method_id(klass, getter_id, Message_field_dispatch0, 0);
+
+    // Generate fast setter method: <field_name>=
+    {
+      size_t len = strlen(fname);
+      size_t bufsize = len + 2; // name + '=' + NUL
+      char* buf = ALLOCA_N(char, bufsize);
+      snprintf(buf, bufsize, "%s=", fname);
+      ID setter_id = rb_intern(buf);
+
+      if (!rb_method_boundp(klass, setter_id, 0)) {
+        FastAccessorEntry* se = ALLOC(FastAccessorEntry);
+        se->field = f;
+        se->accessor_type = METHOD_SETTER;
+        st_insert(cache, (st_data_t)setter_id, (st_data_t)se);
+        rb_define_method_id(klass, setter_id, Message_field_dispatch1, 1);
+      }
+    }
+
+    // Generate fast wrapper setter: <field_name>_as_value= for well-known wrappers.
+    if (!upb_FieldDef_IsRepeated(f) && IsFieldWrapper(f)) {
+      size_t len = strlen(fname);
+      const char* suffix = "_as_value=";
+      size_t bufsize = len + strlen(suffix) + 1;
+      char* buf = ALLOCA_N(char, bufsize);
+      snprintf(buf, bufsize, "%s%s", fname, suffix);
+      ID wsetter_id = rb_intern(buf);
+      if (!rb_method_boundp(klass, wsetter_id, 0)) {
+        FastAccessorEntry* we = ALLOC(FastAccessorEntry);
+        we->field = f;
+        we->accessor_type = METHOD_WRAPPER_SETTER;
+        st_insert(cache, (st_data_t)wsetter_id, (st_data_t)we);
+        rb_define_method_id(klass, wsetter_id, Message_field_dispatch1, 1);
+      }
+    }
+
+    // Also define fast presence check methods (has_<field>?) for fields with presence.
+    if (upb_FieldDef_HasPresence(f)) {
+      size_t len = strlen(fname);
+      size_t bufsize = len + 6; // "has_" + name + "?" + NUL
+      char* buf = ALLOCA_N(char, bufsize);
+      snprintf(buf, bufsize, "has_%s?", fname);
+      ID presence_id = rb_intern(buf);
+
+      // Avoid overriding any existing method unexpectedly.
+      if (!rb_method_boundp(klass, presence_id, 0)) {
+        FastAccessorEntry* pe = ALLOC(FastAccessorEntry);
+        pe->field = f;
+        pe->accessor_type = METHOD_PRESENCE;
+        st_insert(cache, (st_data_t)presence_id, (st_data_t)pe);
+        rb_define_method_id(klass, presence_id, Message_field_dispatch0, 0);
+      }
+    }
+  }
+
   return klass;
 }
 
@@ -1441,6 +1608,7 @@ static void Message_define_class(VALUE klass) {
   rb_define_method(klass, "to_s", Message_inspect, 0);
   rb_define_method(klass, "[]", Message_index, 1);
   rb_define_method(klass, "[]=", Message_index_set, 2);
+  rb_define_method(klass, "get", Message_index_alt, 1);
   rb_define_singleton_method(klass, "decode", Message_decode, -1);
   rb_define_singleton_method(klass, "encode", Message_encode, -1);
   rb_define_singleton_method(klass, "decode_json", Message_decode_json, -1);
