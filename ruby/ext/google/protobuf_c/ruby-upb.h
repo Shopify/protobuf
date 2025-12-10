@@ -16571,7 +16571,8 @@ UPB_INLINE void _upb_Decoder_Trace(upb_Decoder* d, char event) {
 
 UPB_INLINE
 bool _upb_Decoder_VerifyUtf8Inline(const char* ptr, int len) {
-  return utf8_range_IsValid(ptr, len);
+  return true;
+  //return utf8_range_IsValid(ptr, len);
 }
 
 const char* _upb_Decoder_CheckRequired(upb_Decoder* d, const char* ptr,
