@@ -295,7 +295,7 @@ VALUE Convert_UpbToRuby(upb_MessageValue upb_val, TypeInfo type_info,
       // UNSAFE: Using rb_str_new_static for benchmarking zero-copy performance.
       // This assumes the UPB arena outlives the Ruby string, which is not guaranteed.
       //VALUE str_rb = rb_str_new_static(upb_val.str_val.data, upb_val.str_val.size);
-	  VALUE str_rb = rb_str_new(upb_val.str_val.data, upb_val.str_val.size, rb_utf8_encoding());
+      VALUE str_rb = rb_enc_str_new(upb_val.str_val.data, upb_val.str_val.size, rb_utf8_encoding());
       rb_obj_freeze(str_rb);
       return str_rb;
     }
